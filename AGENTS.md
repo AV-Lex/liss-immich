@@ -40,11 +40,19 @@ after D0 acceptance. Do not select unrelated issues as an ongoing backlog.
 Use synthetic data for source checks. A real-library migration or
 deployment belongs to the separately assigned operator.
 
-After accepted source and the operator handoff, including concrete fixes
-from initial acceptance, record PARKED in CURRENT and return the result
-through the task thread so the operator can remove this assignment from
-recurring execution. Preserve source, results and recovery material.
-Potential future work alone does not keep the assignment active.
+Keep this assignment in rotation through actual operator installation and
+verification that the installed change works. Accepted source and an
+operator handoff do not by themselves complete the assignment.
+
+After that verification, ask the maintainer whether concrete follow-up
+fixes are still needed. Record the answer in the task thread and complete
+any agreed fixes, including installation and verification of their result.
+Only after the maintainer confirms that this stage is finished and no
+agreed fixes remain, record PARKED in CURRENT and request removal from
+recurring execution after the active run ends. Preserve source, results
+and recovery material. While awaiting installation or feedback, record
+the dependency and next owner; do not invent unrelated work to fill runs.
+Potential future ideas alone do not create a continuing backlog.
 
 ## Public fork and upstream policy
 

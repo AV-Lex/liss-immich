@@ -25,9 +25,19 @@ thread. Source and installed/runtime state must remain distinct.
 
 ## Finish condition
 
-After accepted source and operator handoff, including concrete fixes from
-initial acceptance: record exact source/result, set PARKED and request
-removal from recurring execution. Do not start a future feature backlog.
+Accepted source and operator handoff lead to installation, not PARKED.
+Keep the assignment in rotation until the assigned operator has actually
+installed the change and verified the agreed behaviour in use.
+
+After successful installation and verification, ask the maintainer whether
+any concrete follow-up fixes remain. Complete the agreed fixes and verify
+their installed result. Only then, with the maintainer's explicit decision
+to finish this stage, record exact source and installation/result status,
+set PARKED and request removal after the active run ends.
+
+While waiting for installation or an answer, record the dependency and next
+owner here. Keep private operational evidence out of this public repository;
+a sanitized status is enough. Do not start an unrelated feature backlog.
 Preserve the fork and its results.
 
 Branch policy and source entry: [LISS_FORK.md](LISS_FORK.md).
