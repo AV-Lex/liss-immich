@@ -378,6 +378,26 @@ export class AssetJobRepository {
       .stream();
   }
 
+  @GenerateSql({ params: [DummyValue.UUID] })
+  async hasMetadataExtracted(assetId: string): Promise<boolean> {
+    const row = await this.db
+      .selectFrom('asset_job_status')
+      .select('metadataExtractedAt')
+      .where('assetId', '=', assetId)
+      .executeTakeFirst();
+    return !!row?.metadataExtractedAt;
+  }
+
+  @GenerateSql({ params: [DummyValue.UUID] })
+  getLivePhotoStills(videoId: string) {
+    return this.db
+      .selectFrom('asset')
+      .select(['id', 'ownerId'])
+      .where('livePhotoVideoId', '=', videoId)
+      .where('deletedAt', 'is', null)
+      .execute();
+  }
+
   private storageTemplateAssetQuery() {
     return this.db
       .selectFrom('asset')

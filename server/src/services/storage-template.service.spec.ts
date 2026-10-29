@@ -1,6 +1,7 @@
 import { Stats } from 'node:fs';
 import { SystemConfig, defaults } from 'src/dtos/config.dto.js';
-import { AssetPathType, AssetType, JobStatus, JobName } from 'src/enum.js';
+import { AssetPathType, AssetType, JobName, JobStatus, QueueName } from 'src/enum.js';
+import { JobService } from 'src/services/job.service.js';
 import { StorageTemplateService } from 'src/services/storage-template.service.js';
 import { AlbumFactory } from 'test/factories/album.factory.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
@@ -26,6 +27,8 @@ describe(StorageTemplateService.name, () => {
     mocks.systemMetadata.get.mockResolvedValue({ storageTemplate: { enabled: true } });
 
     sut.onConfigInit({ newConfig: defaults });
+    mocks.assetJob.hasMetadataExtracted.mockResolvedValue(true);
+    mocks.assetJob.getLivePhotoStills.mockResolvedValue([]);
   });
 
   describe('onConfigValidate', () => {
@@ -1149,6 +1152,8 @@ describe('folder album first placement', () => {
   beforeEach(() => {
     ({ sut, mocks } = newTestService(StorageTemplateService));
     sut.onConfigInit({ newConfig: defaults });
+    mocks.assetJob.hasMetadataExtracted.mockResolvedValue(true);
+    mocks.assetJob.getLivePhotoStills.mockResolvedValue([]);
     mocks.systemMetadata.get.mockResolvedValue({ storageTemplate: { enabled: false } });
     asset = getForStorageTemplate(
       AssetFactory.from({ originalFileName: 'photo.jpg', originalPath: '/data/upload/photo.jpg' })
@@ -1156,7 +1161,9 @@ describe('folder album first placement', () => {
         .exif()
         .build(),
     );
-    mocks.assetJob.getForStorageTemplateJob.mockImplementation(async (id) => (id === asset.id ? asset : undefined));
+    mocks.assetJob.getForStorageTemplateJob.mockImplementation((id) =>
+      Promise.resolve(id === asset.id ? asset : undefined),
+    );
     mocks.album.getAssetFolder.mockResolvedValue({ binding: folder, conflict: false });
     mocks.storage.checkFileExists.mockResolvedValue(false);
     move = vi.spyOn(sut['storageCore'], 'moveFile').mockResolvedValue(true);
@@ -1174,17 +1181,30 @@ describe('folder album first placement', () => {
     );
   });
 
-  it('fails visibly without binding, stock fallback or move for multiple eligible folders', async () => {
+  it('skips visibly without binding, stock fallback or move for multiple eligible folders', async () => {
     mocks.systemMetadata.get.mockResolvedValue({ storageTemplate: { enabled: true } });
     mocks.album.getAssetFolder.mockResolvedValue({ binding: undefined, conflict: true });
-    await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Failed);
+    const result = await sut.handleMigrationSingle({ id: asset.id, source: 'upload' });
+    expect(result).toBe(JobStatus.Skipped);
+    const jobs = newTestService(JobService);
+    jobs.mocks.job.run.mockResolvedValue(result);
+    await jobs.sut.onJobRun(QueueName.StorageTemplateMigration, {
+      name: JobName.StorageTemplateMigrationSingle,
+      data: { id: asset.id, source: 'upload' },
+    });
+    expect(jobs.mocks.job.queue).toHaveBeenCalledWith({
+      name: JobName.AssetGenerateThumbnails,
+      data: { id: asset.id, source: 'upload' },
+    });
     expect(mocks.album.bindAssetFolder).not.toHaveBeenCalled();
     expect(move).not.toHaveBeenCalled();
     expect(mocks.logger.error).toHaveBeenCalledWith(expect.stringContaining('multiple eligible folder albums'));
   });
 
   it('reserves an unrelated sidecar destination and retains the filename suffix on rerun', async () => {
-    mocks.storage.checkFileExists.mockImplementation(async (file) => file === `${folder.path}/photo.jpg.xmp`);
+    mocks.storage.checkFileExists.mockImplementation((file) =>
+      Promise.resolve(file === `${folder.path}/photo.jpg.xmp`),
+    );
     await sut.handleMigrationSingle({ id: asset.id });
     expect(move).toHaveBeenLastCalledWith(expect.objectContaining({ newPath: `${folder.path}/photo+1.jpg` }));
     asset.originalPath = `${folder.path}/photo+1.jpg`;
@@ -1220,6 +1240,35 @@ describe('folder album first placement', () => {
       name: JobName.StorageTemplateMigrationSingle,
       data: { id: asset.id, folderAssociation: true },
     });
+  });
+
+  it('defers first association until actual metadata completion, then retries through the existing event', async () => {
+    mocks.assetJob.hasMetadataExtracted.mockResolvedValue(false);
+    await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Skipped);
+    expect(mocks.album.bindAssetFolder).not.toHaveBeenCalled();
+    expect(move).not.toHaveBeenCalled();
+    mocks.assetJob.hasMetadataExtracted.mockResolvedValue(true);
+    await sut.onAssetMetadataExtracted({ assetId: asset.id, userId: user.id, source: 'upload' });
+    await expect(sut.handleMigrationSingle({ id: asset.id, source: 'upload' })).resolves.toBe(JobStatus.Success);
+    expect(move).toHaveBeenCalledWith(expect.objectContaining({ newPath: `${folder.path}/photo.jpg` }));
+  });
+
+  it('skips a companion binding conflict without moving either original or blocking ordinary previews', async () => {
+    const motion = getForStorageTemplate(AssetFactory.from({ type: AssetType.Video }).owner(user).exif().build());
+    asset.livePhotoVideoId = motion.id;
+    mocks.assetJob.getForStorageTemplateJob.mockImplementation((id) =>
+      Promise.resolve(id === motion.id ? motion : asset),
+    );
+    mocks.album.getAssetFolder.mockImplementation((id) =>
+      Promise.resolve({
+        binding: id === motion.id ? { ...folder, id: 'another-folder' } : folder,
+        conflict: false,
+      }),
+    );
+    await expect(sut.handleMigrationSingle({ id: asset.id, source: 'upload' })).resolves.toBe(JobStatus.Skipped);
+    expect(mocks.album.bindAssetFolder).not.toHaveBeenCalled();
+    expect(move).not.toHaveBeenCalled();
+    expect(mocks.logger.error).toHaveBeenCalledWith(expect.stringContaining('conflict for companion'));
   });
 
   it('reports incomplete folder moves as failures rather than success', async () => {

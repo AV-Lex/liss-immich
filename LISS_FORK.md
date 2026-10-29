@@ -100,32 +100,59 @@ and [architecture overview][architecture]; use the code for version-sensitive fa
   both paths and prevent silent destination overwrite. The logged unlink-failure
   path above normally clears history, so it is a separate untracked-copy case.
 
-### Reuse and D1 extension points
+## Folder-album v0 fork delta
 
-Reuse asset/album IDs and membership APIs, permission checks, existing SQL
-[schema/migration workflow][migrations], storage-template jobs/lock, collision
-selection and StorageCore move history. The likely affected responsibilities are
-explicit folder binding/placement policy, association-triggered first placement,
-persistent binding state, compatible DTOs/generated SDKs and minimal album UI;
-reuse Folder View for location browsing. This is a source-based starting map,
-not a chosen D1 design or evidence that unchanged clients are already compatible.
+[D1](https://github.com/AV-Lex/liss-immich/issues/2) adds explicit owner opt-in
+for first placement into readable, distinct album directories. Ordinary logical
+albums and unchanged upload/Add/Remove clients retain their normal contracts.
 
-D1 still needs a short implementation plan and synthetic checks for upload then
-association, deterministic conflicting membership, distinct sanitized destinations,
-repeated processing, rename/delete/unmark behaviour, recovery and ordinary client
-compatibility. No folder binding or first-assignment policy exists in this fork yet.
+- [`folder_album`](server/src/schema/tables/folder-album.table.ts) retains the
+  existing album UUID, owner, immutable directory and enabled state. An asset's
+  first `folderAlbumId` persists independently of later logical membership.
+  Rename, unmark and logical album deletion retain existing placement; deleted
+  albums leave a disabled binding. Account/asset deletion remains upstream.
+- [`AlbumService`](server/src/services/album.service.ts) exposes owner-only opt-in
+  through an optional album update field. Enabling explicitly queues existing
+  members. Membership events cover late ordinary Add, bulk Add and shared-link
+  association, including duplicate Add repair. Logical-only albums do not enqueue
+  new placement work. New albums start ordinary; enabling an album created with
+  initial members supplies the controlled first layout.
+- [`StorageTemplateService`](server/src/services/storage-template.service.ts)
+  uses the existing queue and database lock. Zero eligible folders keeps stock
+  behavior, one chooses the first persistent binding, and multiple folders skip
+  placement with a conflict log while allowing ordinary preview generation.
+  Folder association jobs cannot be absorbed by an already active same-asset
+  metadata job. Folder placement also works with stock templates disabled.
+- A directory is allocated once beneath the owner's library root as
+  `folder-albums/<sanitized-name>--<full-album-UUID>`. Names are bounded in UTF-8
+  bytes; UUIDs distinguish equal/sanitized names. Existing collision suffixes are
+  reused and sidecar destinations are reserved. A retained move-history
+  destination wins over a newly computed suffix on retry. Live Photo motion
+  follows the still's binding; foreign-owned/external originals are excluded.
+- [`StorageCore`](server/src/cores/storage.core.ts) and the existing
+  [`move_history`](server/src/schema/tables/move.table.ts) now retain source
+  verification/timestamp proof for folder moves, verify new-only recovery without
+  statting an absent source, and refuse both-path mismatches. Source-unlink failure
+  retains history. Insufficient legacy proof fails safely. Original, sidecar and
+  companion movement remains separately recoverable, not atomic. Errors/conflicts
+  are logged; the upstream queue adds no new automatic-retry guarantee.
+- The additive native migration is
+  [`1793289600000-FolderAlbums`](server/src/schema/migrations/1793289600000-FolderAlbums.ts).
+  It moves no files and opts no existing rows in. The web album menu provides
+  selection/status and links to existing Folder View. Optional OpenAPI/TypeScript
+  fields are regenerated with the native Dart generator (Dart output remains
+  ignored under the existing repository policy).
 
-## Planned fork delta
+[Folder album behavior, native checks and recovery/rollback](docs/docs/features/folder-albums.md)
+describe the supported path and limits. Schema down refuses outstanding move
+history and preserves original paths/files; an old binary must not start against
+an unknown applied migration. A matching post-placement DB/media snapshot must
+be retained before native last-migration revert. Installed rollback remains an
+operator verification, distinct from source and synthetic tests.
 
-[D1](https://github.com/AV-Lex/liss-immich/issues/2) covers initial physical
-placement and subsequent uploads into explicitly bound folder albums,
-preserving existing asset/album identities and ordinary client compatibility.
-
-User cross-folder Move, hierarchy, reverse sync and a new mobile build
-are deferred. The implementation has not started. When integrated,
-replace this planned summary with the actual supported behaviour.
-
-This page describes integrated source, not an installed instance.
+Cross-folder Move, hierarchy, reverse sync, automatic bulk renaming, a new mobile
+build, a new scheduler/file engine and a general upstream upgrade are deferred.
+This page describes source, not an installed instance.
 
 [d0]: https://github.com/AV-Lex/liss-immich/issues/1
 [readme]: https://github.com/immich-app/immich/blob/8303cb117e197c700332b33b61b45314c9cc5bb4/README.md

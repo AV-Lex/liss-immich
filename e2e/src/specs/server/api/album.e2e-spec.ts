@@ -811,8 +811,10 @@ describe('/albums', () => {
       const first = await utils.createAsset(user1.accessToken, { fileModifiedAt: '2020-06-07T08:09:10.000Z' });
       await utils.waitForQueueFinish(admin.accessToken, 'metadataExtraction');
       const client = await utils.connectDatabase();
-      const row = async (id: string) =>
-        (await client.query('SELECT id, "originalPath", "folderAlbumId" FROM asset WHERE id = $1', [id])).rows[0];
+      const row = async (id: string) => {
+        const result = await client.query('SELECT id, "originalPath", "folderAlbumId" FROM asset WHERE id = $1', [id]);
+        return result.rows[0];
+      };
       const original = await request(app).get(`/assets/${first.id}/original`).set(headers);
       expect(original.status).toBe(200);
       const before = await row(first.id);
@@ -823,7 +825,8 @@ describe('/albums', () => {
         .send({ ids: [first.id] })
         .expect(200);
       await utils.waitForQueueFinish(admin.accessToken, 'storageTemplateMigration');
-      expect((await row(first.id)).originalPath).toBe(before.originalPath);
+      const logicalRow = await row(first.id);
+      expect(logicalRow.originalPath).toBe(before.originalPath);
       const folder = await utils.createAlbum(user1.accessToken, { albumName: 'D1-API' });
       const enabled = await request(app)
         .patch(`/albums/${folder.id}`)
@@ -836,9 +839,23 @@ describe('/albums', () => {
         .set(headers)
         .send({ ids: [first.id] })
         .expect(200);
-      await expect.poll(async () => (await row(first.id)).folderAlbumId, { timeout: 10_000 }).toBe(folder.id);
       await expect
-        .poll(async () => (await row(first.id)).originalPath, { timeout: 10_000 })
+        .poll(
+          async () => {
+            const current = await row(first.id);
+            return current.folderAlbumId;
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(folder.id);
+      await expect
+        .poll(
+          async () => {
+            const current = await row(first.id);
+            return current.originalPath;
+          },
+          { timeout: 10_000 },
+        )
         .toBe(`${enabled.body.folderAlbum.path}/example.png`);
       const placed = await row(first.id);
       const download = await request(app).get(`/assets/${first.id}/original`).set(headers);
@@ -872,7 +889,7 @@ describe('/albums', () => {
         .set(headers)
         .send({ albumName: 'Renamed', isFolderAlbum: false })
         .expect(200);
-      await request(app).delete(`/albums/${folder.id}`).set(headers).expect(200);
+      await request(app).delete(`/albums/${folder.id}`).set(headers).expect(204);
       await utils.waitForQueueFinish(admin.accessToken, 'storageTemplateMigration');
       expect(await row(first.id)).toEqual(placed);
       const later = await utils.createAsset(user1.accessToken);
@@ -881,11 +898,26 @@ describe('/albums', () => {
         .set(headers)
         .send({ ids: [later.id] })
         .expect(200);
-      await expect.poll(async () => (await row(later.id)).folderAlbumId, { timeout: 10_000 }).toBe(next.id);
       await expect
-        .poll(async () => (await row(later.id)).originalPath, { timeout: 10_000 })
+        .poll(
+          async () => {
+            const current = await row(later.id);
+            return current.folderAlbumId;
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(next.id);
+      await expect
+        .poll(
+          async () => {
+            const current = await row(later.id);
+            return current.originalPath;
+          },
+          { timeout: 10_000 },
+        )
         .toBe(`${nextEnabled.body.folderAlbum.path}/example.png`);
-      expect((await getAlbumInfo({ id: next.id }, { headers })).id).toBe(next.id);
+      const unchangedAlbum = await getAlbumInfo({ id: next.id }, { headers });
+      expect(unchangedAlbum.id).toBe(next.id);
     });
   });
 });

@@ -1,0 +1,117 @@
+# Folder albums (Liss v0)
+
+An album owner can choose **Use as folder album** in the web album menu. This
+explicitly applies the first layout to eligible existing members and future
+additions. Ordinary albums keep their existing many-to-many behavior. Existing
+mobile and CLI uploads continue to use the ordinary upload and album Add APIs.
+
+Managed originals owned by the album owner go into
+`library/<user-root>/folder-albums/<readable-name>--<album-UUID>/`, with readable
+original basenames and the existing numeric collision suffixes. The UUID keeps
+albums with equal or similarly sanitized names separate. Sidecars use the
+original's destination plus `.xmp`; linked motion files use the still's folder.
+External assets and embedded Android motion files retain upstream behavior.
+
+The first folder assignment is persistent. Adding an assigned asset to another
+album, removing membership, renaming an album, stopping new assignments, or
+deleting the logical album does not move or delete its original. The folder's
+name is fixed when enabled; renaming the display name does not rename files.
+Re-enabling the same album reuses its directory. Account and asset deletion still
+follow upstream behavior.
+
+An unassigned asset belonging to several enabled folder albums is skipped and
+logged as a placement conflict. No album is chosen by creation date. Remove the
+conflicting membership, then retry by adding the asset again or running the
+existing storage-template migration job. Normal previews can still be generated
+for skipped assets. The Folder View shows physical locations; it does not sync
+filesystem edits back into albums.
+
+Folder placement works independently of the stock storage-template enable flag.
+Unassigned assets keep stock behavior. Repeated stock single/full jobs preserve
+an existing folder assignment. The full job also retries incomplete folder moves.
+
+## Build and upgrade
+
+Use the Node, pnpm, Java and generator versions pinned by `mise.toml` and the
+lockfile. Follow the repository's native build and Compose installation workflow;
+the version remains based on Immich 3.3.5. From the source checkout:
+
+```sh
+mise run //:plugins
+mise run //server:build
+mise run //:open-api
+pnpm --filter immich check
+pnpm --filter immich test --run src/services/storage-template.service.spec.ts src/services/album.service.spec.ts src/cores/storage.core.spec.ts
+pnpm --filter immich test:medium --run test/medium/specs/services/storage-template.service.spec.ts test/medium/specs/repositories/folder-placement-queue.spec.ts test/medium/specs/repositories/storage-locks.spec.ts
+```
+
+Build the existing `server/Dockerfile` and web artifacts as in the native release
+workflow, recording the exact source commit/image. Before updating an installed
+instance, stop writes/jobs and retain a matching database and complete media
+snapshot. Server startup runs the additive `1793289600000-FolderAlbums` migration;
+it opts no existing album or asset in and moves no files. Start with a small
+synthetic library, enable one album, and verify original downloads, disk hashes,
+mtimes, UUIDs and later uploads before applying it to a real library. Source
+checks and operator installation are separate results.
+
+## Retry and interrupted moves
+
+Placement uses the existing storage queue, database lock and `move_history`.
+Folder placement waits for the existing completed-metadata marker; an upload's
+initial EXIF size alone is insufficient. Metadata, preview, editor and video readers and movers coordinate
+on per-asset advisory locks, refreshing paths after acquisition. A bounded pool
+of four lock connections per process keeps ordinary database queries available;
+nested Android motion extraction reuses the same lock session. Shutdown closes
+this pool. Different assets can still be read concurrently. Long reads delay movement of
+that asset and occupy one of the four lock sessions; no new automatic timeout or
+retry policy is introduced.
+Association-triggered jobs are independent of an already active metadata job
+for the same asset. Retries retain the recorded destination and the first folder
+binding. A duplicate ordinary Add can repair an earlier membership/enqueue gap.
+The existing queue has no new automatic-retry guarantee; use an explicit replay
+after resolving a reported error.
+
+For folder moves the history records source size, checksum and timestamps before
+filesystem mutation. Recovery verifies a new-only file without statting an absent
+old path. If both files exist, it verifies them before completing; a mismatch
+retains both files and history. A failed source unlink also retains history.
+Insufficient legacy evidence is a failure requiring investigation, not permission
+to guess, overwrite or discard files. Preserve the database, both recorded paths
+and logs when reporting it. Sidecars and motion files are separate moves, so
+partial completion is possible and must be retried.
+
+## Fallback and rollback
+
+Stopping new assignments in the same new binary is the immediate fallback.
+Already assigned files retain their readable paths; pausing the existing storage
+queue stops movement entirely. Disable stock storage templates as well if a
+stable layout is required during recovery.
+
+The baseline refuses an unknown executed migration, so starting an old binary
+directly against a D1-migrated database is not a supported rollback. To retain
+the completed readable layout in a source rollback:
+
+1. Stop all API writes, workers and file moves. Verify that `move_history` is
+   empty. Keep the exact new source/image available for recovery.
+2. Capture and verify a matching **post-placement database plus complete media**
+   snapshot. Retain this snapshot and binding information separately throughout
+   rollback; schema down discards folder policy, not original paths or files.
+3. With the D1 source/toolchain, run the native last-migration revert
+   (`pnpm --filter immich migrations:revert`). Confirm the last migration is
+   `1793289600000-FolderAlbums`; do not revert another migration. Its down guard
+   refuses outstanding move history. Never edit the migration ledger manually.
+4. Keep stock templates disabled, start the matching baseline source/image, and
+   verify startup, original downloads, file hashes/mtimes and retained readable
+   `asset.originalPath` values before allowing writes again. Folder controls and
+   future first assignments are unavailable in the baseline.
+
+Restore the matching post-placement snapshot and D1 image together to recover
+the exact D1 binding state. A pre-upgrade database/media snapshot is an additional
+disaster-recovery option; it may restore the earlier layout and cannot preserve
+uploads made afterward. Never combine a database snapshot with files from a
+different point in time or treat schema down as a file undo. Runtime downgrade
+verification belongs to the assigned operator; the native medium tests exercise
+the migration ledger/guard and preserved paths/files, not an installed rollback.
+
+Cross-folder Move, hierarchy, reverse sync, automatic folder renaming and a new
+mobile build are outside v0.

@@ -1,4 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import path from 'node:path';
+import sanitize from 'sanitize-filename';
+import { StorageCore } from 'src/cores/storage.core.js';
 import {
   AddUsersDto,
   AlbumResponseDto,
@@ -16,9 +19,6 @@ import { AuthDto } from 'src/dtos/auth.dto.js';
 import { MapMarkerResponseDto } from 'src/dtos/map.dto.js';
 import { AlbumUserRole, DatabaseLock, Permission } from 'src/enum.js';
 import { AlbumAssetCount, AlbumInfoOptions } from 'src/repositories/album.repository.js';
-import path from 'node:path';
-import sanitize from 'sanitize-filename';
-import { StorageCore } from 'src/cores/storage.core.js';
 import { BaseService } from 'src/services/base.service.js';
 import { addAssets, removeAssets } from 'src/utils/asset.util.js';
 import { asDateTimeString } from 'src/utils/date.js';
@@ -154,7 +154,7 @@ export class AlbumService extends BaseService {
     if (dto.isFolderAlbum !== undefined) {
       if (
         auth.sharedLink ||
-        !album.albumUsers.some(({ user, role }) => user.id === auth.user.id && role === AlbumUserRole.Owner)
+        album.albumUsers.every(({ user, role }) => !(user.id === auth.user.id && role === AlbumUserRole.Owner))
       ) {
         throw new BadRequestException('Only the album owner can change folder placement');
       }
@@ -331,7 +331,7 @@ export class AlbumService extends BaseService {
       });
     }
 
-    if (removedIds.length) {
+    if (removedIds.length > 0) {
       await this.eventRepository.emit('AlbumAssetsChanged', { albumId: id, assetIds: removedIds });
     }
     return results;

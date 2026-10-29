@@ -263,9 +263,7 @@ export const mapAlbum = (entity: MaybeDehydrated<MapAlbumDto>): AlbumResponseDto
   }
 
   return {
-    ...(entity.folderAlbum
-      ? { folderAlbum: { enabled: entity.folderAlbum.enabled, path: entity.folderAlbum.path } }
-      : {}),
+    ...(entity.folderAlbum && { folderAlbum: { enabled: entity.folderAlbum.enabled, path: entity.folderAlbum.path } }),
     albumName: entity.albumName,
     // TODO: return null instead of '' in v4
     description: entity.description ?? '',

@@ -226,22 +226,28 @@ export class StorageCore {
       }
 
       const proof =
-        move.sourceChecksum && move.sourceSize != null
+        move.sourceChecksum && move.sourceSize !== null && move.sourceSize !== undefined
           ? { checksum: move.sourceChecksum, sizeInBytes: Number(move.sourceSize) }
           : assetInfo;
+      if (safe && isNewPathExists && (!move.sourceMtime || !move.sourceAtime)) {
+        return incomplete('Incomplete move is missing source timestamp proof; retaining files and history');
+      }
       if (isNewPathExists) {
         // A retry may find both paths after copy. Never rename over unverified bytes.
         if (!proof || !(await this.verifyNewPathContentsMatchesExpected(move.oldPath, move.newPath, proof, true))) {
           return incomplete('Incomplete move destination could not be verified; retaining files and history');
-        }
-        if (move.sourceMtime && move.sourceAtime) {
-          await this.storageRepository.utimes(move.newPath, new Date(move.sourceAtime), new Date(move.sourceMtime));
         }
         if (isOldPathExists && move.oldPath !== move.newPath) {
           const oldChecksum = await this.cryptoRepository.hashFile(move.oldPath);
           if (!oldChecksum.equals(proof.checksum)) {
             return incomplete('Incomplete move source differs from expected contents; retaining both files');
           }
+        }
+        // Validate both paths before changing either timestamps or contents.
+        if (move.sourceMtime && move.sourceAtime) {
+          await this.storageRepository.utimes(move.newPath, new Date(move.sourceAtime), new Date(move.sourceMtime));
+        }
+        if (isOldPathExists && move.oldPath !== move.newPath) {
           await this.storageRepository.unlink(move.oldPath);
         }
         actualPath = move.newPath;
@@ -258,9 +264,7 @@ export class StorageCore {
         pathType,
         oldPath,
         newPath,
-        ...(proof
-          ? { sourceSize: proof.size, sourceChecksum, sourceAtime: proof.atime, sourceMtime: proof.mtime }
-          : {}),
+        ...(proof && { sourceSize: proof.size, sourceChecksum, sourceAtime: proof.atime, sourceMtime: proof.mtime }),
       });
     }
 
@@ -269,6 +273,9 @@ export class StorageCore {
     }
 
     if (move.oldPath !== newPath) {
+      if (safe && (await this.storageRepository.checkFileExists(newPath))) {
+        return incomplete('Folder move destination already exists; retaining source, destination and history');
+      }
       try {
         this.logger.debug(`Attempting to rename file: ${move.oldPath} => ${newPath}`);
         await this.storageRepository.rename(move.oldPath, newPath);
@@ -284,7 +291,7 @@ export class StorageCore {
             move.oldPath,
             newPath,
             assetInfo ??
-              (move.sourceChecksum && move.sourceSize != null
+              (move.sourceChecksum && move.sourceSize !== null && move.sourceSize !== undefined
                 ? { checksum: move.sourceChecksum, sizeInBytes: Number(move.sourceSize) }
                 : undefined),
             !!safe,

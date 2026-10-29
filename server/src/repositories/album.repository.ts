@@ -16,9 +16,9 @@ import { Chunked, ChunkedArray, ChunkedSet, DummyValue, GenerateSql } from 'src/
 import { AlbumUserCreateDto, MapAlbumDto } from 'src/dtos/album.dto.js';
 import { AlbumUserRole } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
-import { FolderAlbumTable } from 'src/schema/tables/folder-album.table.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
+import { FolderAlbumTable } from 'src/schema/tables/folder-album.table.js';
 import { asUuid, dummy, withDefaultVisibility } from 'src/utils/database.js';
 
 export interface AlbumAssetCount {
@@ -116,8 +116,9 @@ export class AlbumRepository {
     return this.db.selectFrom('album_asset').select('assetId').where('albumId', '=', albumId).execute();
   }
 
-  // Called under StorageTemplateMigration's lock. Read the persisted first binding,
-  // even if the queued asset snapshot predates it or its logical album is gone.
+  // Read the persisted first binding even when a queued snapshot predates it or
+  // its logical album is gone. Persist selection only under the migration lock;
+  // event handlers may also use this read-only query to decide whether to enqueue.
   async getAssetFolder(assetId: string, ownerId: string) {
     const asset = await this.db
       .selectFrom('asset')

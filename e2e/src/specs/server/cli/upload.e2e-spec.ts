@@ -214,11 +214,12 @@ describe(`immich upload`, () => {
       const client = await utils.connectDatabase();
       await expect
         .poll(
-          async () =>
-            Number(
-              (await client.query('SELECT count(*) AS count FROM asset WHERE "folderAlbumId" = $1', [album.id])).rows[0]
-                .count,
-            ),
+          async () => {
+            const result = await client.query('SELECT count(*) AS count FROM asset WHERE "folderAlbumId" = $1', [
+              album.id,
+            ]);
+            return Number(result.rows[0].count);
+          },
           { timeout: 15_000 },
         )
         .toBe(9);
@@ -227,7 +228,8 @@ describe(`immich upload`, () => {
       const [after] = await getAllAlbums({}, { headers: asKeyAuth(key) });
       expect(after.id).toBe(album.id);
       expect(after.folderAlbum?.path).toBe(enabled.folderAlbum?.path);
-      expect((await getAssetStatistics({}, { headers: asKeyAuth(key) })).total).toBe(9);
+      const stats = await getAssetStatistics({}, { headers: asKeyAuth(key) });
+      expect(stats.total).toBe(9);
     });
 
     it('should have accurate dry run', async () => {

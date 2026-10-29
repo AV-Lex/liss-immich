@@ -227,6 +227,10 @@ export class MetadataService extends BaseService {
 
   @OnJob({ name: JobName.AssetExtractMetadata, queue: QueueName.MetadataExtraction })
   async handleMetadataExtraction(data: JobOf<JobName.AssetExtractMetadata>) {
+    return this.databaseRepository.withAssetLock(data.id, () => this.extractMetadata(data));
+  }
+
+  private async extractMetadata(data: JobOf<JobName.AssetExtractMetadata>) {
     const [{ metadata, reverseGeocoding }, asset] = await Promise.all([
       this.getConfig({ withCache: true }),
       this.assetJobRepository.getForMetadataExtraction(data.id),

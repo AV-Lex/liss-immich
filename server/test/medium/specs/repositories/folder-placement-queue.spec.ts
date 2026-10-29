@@ -32,25 +32,21 @@ it('does not coalesce late association into an already active metadata placement
     queueName: QueueName.StorageTemplateMigration,
     jobName: JobName.StorageTemplateMigrationSingle,
     label: 'folder-placement-test',
-    handler: async () => JobStatus.Success,
+    handler: () => Promise.resolve(JobStatus.Success),
   };
-  let release!: () => void;
-  const blocked = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let started!: () => void;
-  const active = new Promise<void>((resolve) => {
-    started = resolve;
-  });
+  const { promise: blocked, resolve: release } = Promise.withResolvers<void>();
+  const { promise: active, resolve: started } = Promise.withResolvers<void>();
   const seen: boolean[] = [];
   const worker = new Worker(
     queue.name,
     async (job) => {
       seen.push(!!job.data.folderAssociation);
-      if (!job.data.folderAssociation) {
-        started();
-        await blocked;
+      if (job.data.folderAssociation) {
+        return;
       }
+
+      started();
+      await blocked;
     },
     { connection },
   );

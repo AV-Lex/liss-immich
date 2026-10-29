@@ -1427,3 +1427,77 @@ describe(AlbumService.name, () => {
   //   await expect(sut.removeAssets(auth, albumId, { ids: ['1'] })).rejects.toBeInstanceOf(ForbiddenException);
   // });
 });
+
+describe('folder album controls and association retry', () => {
+  let sut: AlbumService;
+  let mocks: ServiceMocks;
+  const user = UserFactory.create();
+  let album: ReturnType<typeof AlbumFactory.create>;
+  beforeEach(() => {
+    ({ sut, mocks } = newTestService(AlbumService));
+    album = AlbumFactory.from({ albumName: 'Trip/One' })
+      .owner(user)
+      .asset({}, (builder) => builder.exif())
+      .build();
+    mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([album.id]));
+    mocks.album.getById.mockImplementation(() => Promise.resolve(getForAlbum(album)));
+    mocks.album.update.mockImplementation(() => Promise.resolve(getForAlbum(album)));
+    mocks.user.get.mockResolvedValue(user);
+    mocks.album.getFolderAssetIds.mockResolvedValue([{ assetId: album.assets[0].id }]);
+  });
+
+  it('explicitly enables an existing small album, and an enable retry repairs a lost enqueue', async () => {
+    mocks.event.emit.mockRejectedValueOnce(new Error('queue unavailable'));
+    await expect(sut.update(AuthFactory.create(user), album.id, { isFolderAlbum: true })).rejects.toThrow(
+      'queue unavailable',
+    );
+    await sut.update(AuthFactory.create(user), album.id, { isFolderAlbum: true });
+    expect(mocks.album.setFolderAlbum).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: album.id,
+        ownerId: user.id,
+        path: expect.stringContaining(`/folder-albums/TripOne--${album.id}`),
+        enabled: true,
+      }),
+    );
+    expect(mocks.event.emit).toHaveBeenLastCalledWith('AlbumAssetsChanged', {
+      albumId: album.id,
+      assetIds: [album.assets[0].id],
+    });
+  });
+
+  it('limits UTF-8 directory basename bytes and provides a readable fallback for sanitized-empty names', async () => {
+    album.albumName = '😀'.repeat(200);
+    await sut.update(AuthFactory.create(user), album.id, { isFolderAlbum: true });
+    const value = mocks.album.setFolderAlbum.mock.calls[0][0];
+    expect(Buffer.byteLength(value.path.split('/').at(-1)!)).toBeLessThan(255);
+    album.albumName = '...///';
+    await sut.update(AuthFactory.create(user), album.id, { isFolderAlbum: true });
+    expect(mocks.album.setFolderAlbum).toHaveBeenLastCalledWith(
+      expect.objectContaining({ path: expect.stringContaining(`/Album--${album.id}`) }),
+    );
+  });
+
+  it('does not alter placement for a normal rename or unmark, and editors cannot opt in', async () => {
+    await sut.update(AuthFactory.create(user), album.id, { albumName: 'new display name' });
+    expect(mocks.album.setFolderAlbum).not.toHaveBeenCalled();
+    await sut.update(AuthFactory.create(user), album.id, { isFolderAlbum: false });
+    expect(mocks.album.disableFolderAlbum).toHaveBeenCalledWith(album.id);
+    expect(mocks.event.emit).not.toHaveBeenCalled();
+    const editor = UserFactory.create();
+    album.albumUsers.push({ ...album.albumUsers[0], user: editor, role: AlbumUserRole.Editor, userId: editor.id });
+    await expect(sut.update(AuthFactory.create(editor), album.id, { isFolderAlbum: true })).rejects.toThrow(
+      'Only the album owner',
+    );
+    expect(mocks.album.setFolderAlbum).not.toHaveBeenCalled();
+  });
+
+  it('emits placement repair even when ordinary Add returns the existing duplicate result', async () => {
+    const id = album.assets[0].id;
+    mocks.album.getAssetIds.mockResolvedValue(new Set([id]));
+    await expect(sut.addAssets(AuthFactory.create(user), album.id, { ids: [id] })).resolves.toEqual([
+      { id, success: false, error: BulkIdErrorReason.DUPLICATE },
+    ]);
+    expect(mocks.event.emit).toHaveBeenCalledWith('AlbumAssetsChanged', { albumId: album.id, assetIds: [id] });
+  });
+});

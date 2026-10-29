@@ -1,14 +1,15 @@
+/* eslint-disable unicorn/no-await-expression-member -- Keep real-file assertions adjacent to the awaited operation. */
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, stat, writeFile, utimes, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { StorageCore } from 'src/cores/storage.core.js';
 import { AssetFileType, AssetPathType } from 'src/enum.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
-import { StorageRepository } from 'src/repositories/storage.repository.js';
 import { MoveRepository } from 'src/repositories/move.repository.js';
+import { StorageRepository } from 'src/repositories/storage.repository.js';
 import { BaseService } from 'src/services/base.service.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
-import { StorageCore } from 'src/cores/storage.core.js';
 
 describe('StorageCore', () => {
   describe('isImmichPath', () => {
@@ -69,9 +70,9 @@ describe('StorageCore recoverable files', () => {
     const crypto = new CryptoRepository();
     mocks.crypto.hashFile.mockImplementation(crypto.hashFile.bind(crypto));
     mocks.systemMetadata.get.mockResolvedValue({ storageTemplate: { hashVerificationEnabled: false } });
-    mocks.move.getByEntity.mockImplementation(async () => history);
-    mocks.move.create.mockImplementation(
-      async (value) =>
+    mocks.move.getByEntity.mockImplementation(() => Promise.resolve(history));
+    mocks.move.create.mockImplementation((value) =>
+      Promise.resolve(
         (history = {
           sourceSize: null,
           sourceChecksum: null,
@@ -80,18 +81,19 @@ describe('StorageCore recoverable files', () => {
           sourceMtime: value.sourceMtime ? new Date(value.sourceMtime) : null,
           id: 'move-id',
         }),
+      ),
     );
-    mocks.move.update.mockImplementation(
-      async (_id, value) => (history = { ...history!, ...value } as NonNullable<typeof history>),
+    mocks.move.update.mockImplementation((_id, value) =>
+      Promise.resolve((history = { ...history!, ...value } as NonNullable<typeof history>)),
     );
-    mocks.move.delete.mockImplementation(async () => {
+    mocks.move.delete.mockImplementation(() => {
       const result = history!;
       history = undefined;
-      return result;
+      return Promise.resolve(result);
     });
-    mocks.asset.update.mockImplementation(async (value) => {
+    mocks.asset.update.mockImplementation((value) => {
       trackedPath = value.originalPath!;
-      return undefined as never;
+      return Promise.resolve(undefined as never);
     });
   });
 
@@ -132,11 +134,25 @@ describe('StorageCore recoverable files', () => {
     'recovers after interruption at %s',
     async (stage) => {
       if (['copy', 'unlink'].includes(stage)) mocks.storage.rename.mockRejectedValueOnce({ code: 'EXDEV' });
-      if (stage === 'rename') mocks.asset.update.mockRejectedValueOnce(new Error('after rename'));
-      if (stage === 'copy') mocks.storage.utimes.mockRejectedValueOnce(new Error('after copy, before utimes'));
-      if (stage === 'unlink') mocks.storage.unlink.mockRejectedValueOnce(new Error('source unlink failed'));
-      if (stage === 'savePath') mocks.asset.update.mockRejectedValueOnce(new Error('DB unavailable'));
-      if (stage === 'historyDelete') mocks.move.delete.mockRejectedValueOnce(new Error('after path save'));
+      switch (stage) {
+        case 'rename':
+        case 'savePath': {
+          mocks.asset.update.mockRejectedValueOnce(new Error('DB unavailable after rename'));
+          break;
+        }
+        case 'copy': {
+          mocks.storage.utimes.mockRejectedValueOnce(new Error('after copy, before utimes'));
+          break;
+        }
+        case 'unlink': {
+          mocks.storage.unlink.mockRejectedValueOnce(new Error('source unlink failed'));
+          break;
+        }
+        case 'historyDelete': {
+          mocks.move.delete.mockRejectedValueOnce(new Error('after path save'));
+          break;
+        }
+      }
       await expect(move()).rejects.toThrow();
       expect(history).toBeDefined();
       // Fresh StorageCore instance models worker restart; only durable history/path survive.
@@ -156,6 +172,17 @@ describe('StorageCore recoverable files', () => {
       await expect(move()).resolves.toBe(true);
     },
   );
+
+  it('refuses an existing destination on a first folder move instead of overwriting it', async () => {
+    core.ensureFolders(newPath);
+    const unrelated = Buffer.alloc(bytes.length, 88);
+    await writeFile(newPath, unrelated);
+    await expect(move()).rejects.toThrow(/already exists/);
+    expect(await readFile(oldPath)).toEqual(bytes);
+    expect(await readFile(newPath)).toEqual(unrelated);
+    expect(history?.newPath).toBe(newPath);
+    expect(trackedPath).toBe(oldPath);
+  });
 
   it('retains different same-size files and history when both recorded paths exist', async () => {
     mocks.storage.rename.mockRejectedValueOnce({ code: 'EXDEV' });
@@ -179,6 +206,51 @@ describe('StorageCore recoverable files', () => {
     expect(mocks.storage.stat).not.toHaveBeenCalledWith(oldPath);
     expect(history).toBeDefined();
     expect(trackedPath).toBe(oldPath);
+  });
+
+  it('retains legacy new-only original history when valid bytes lack timestamp proof', async () => {
+    mocks.asset.update.mockRejectedValueOnce(new Error('after rename'));
+    await expect(move()).rejects.toThrow();
+    history!.sourceMtime = null;
+    history!.sourceAtime = null;
+    const wrongTime = new Date('2025-01-01T00:00:00.000Z');
+    await utimes(newPath, wrongTime, wrongTime);
+    await expect(move()).rejects.toThrow(/timestamp proof/);
+    expect(history).toBeDefined();
+    expect(trackedPath).toBe(oldPath);
+    expect((await stat(newPath)).mtime.getTime()).toBe(wrongTime.getTime());
+    expect(await readFile(newPath)).toEqual(bytes);
+  });
+
+  it('retains both legacy copies with different mtimes when timestamp proof is missing', async () => {
+    mocks.storage.rename.mockRejectedValueOnce({ code: 'EXDEV' });
+    mocks.storage.utimes.mockRejectedValueOnce(new Error('after copy'));
+    await expect(move()).rejects.toThrow();
+    history!.sourceMtime = null;
+    history!.sourceAtime = null;
+    const wrongTime = new Date('2025-01-01T00:00:00.000Z');
+    await utimes(newPath, wrongTime, wrongTime);
+    await expect(move()).rejects.toThrow(/timestamp proof/);
+    expect((await stat(oldPath)).mtime.getTime()).toBe(mtime.getTime());
+    expect((await stat(newPath)).mtime.getTime()).toBe(wrongTime.getTime());
+    expect(await readFile(oldPath)).toEqual(bytes);
+    expect(await readFile(newPath)).toEqual(bytes);
+    expect(history).toBeDefined();
+    expect(trackedPath).toBe(oldPath);
+  });
+
+  it('does not mutate a valid destination when the recorded old source has changed', async () => {
+    mocks.storage.rename.mockRejectedValueOnce({ code: 'EXDEV' });
+    mocks.storage.utimes.mockRejectedValueOnce(new Error('crash after copy'));
+    await expect(move()).rejects.toThrow();
+    await writeFile(oldPath, Buffer.alloc(bytes.length, 88));
+    const wrongTime = new Date('2025-01-01T00:00:00.000Z');
+    await utimes(newPath, wrongTime, wrongTime);
+    await expect(move()).rejects.toThrow(/source differs/);
+    expect((await stat(newPath)).mtime.getTime()).toBe(wrongTime.getTime());
+    expect(await readFile(newPath)).toEqual(bytes);
+    expect(await readFile(oldPath)).toEqual(Buffer.alloc(bytes.length, 88));
+    expect(history).toBeDefined();
   });
 
   it('recovers a new-only sidecar from persisted proof and fails legacy insufficient proof safely', async () => {

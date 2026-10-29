@@ -138,11 +138,22 @@ export class StorageTemplateService extends BaseService {
   @OnEvent({ name: 'AssetMetadataExtracted' })
   async onAssetMetadataExtracted({ source, assetId }: ArgOf<'AssetMetadataExtracted'>) {
     await this.jobRepository.queue({ name: JobName.StorageTemplateMigrationSingle, data: { source, id: assetId } });
+    const stills = await this.assetJobRepository.getLivePhotoStills(assetId);
+    for (const still of stills) {
+      const selection = await this.albumRepository.getAssetFolder(still.id, still.ownerId);
+      if (selection?.binding || selection?.conflict) {
+        await this.jobRepository.queue({
+          name: JobName.StorageTemplateMigrationSingle,
+          data: { id: still.id, folderAssociation: true },
+        });
+      }
+    }
   }
 
   @OnEvent({ name: 'AlbumAssetsChanged' })
   async onAlbumAssetsChanged({ albumId, assetIds }: ArgOf<'AlbumAssetsChanged'>) {
-    if (!(await this.albumRepository.getFolderAlbum(albumId))?.enabled) {
+    const folder = await this.albumRepository.getFolderAlbum(albumId);
+    if (!folder?.enabled) {
       return;
     }
     for (const id of new Set(assetIds)) {
@@ -246,90 +257,99 @@ export class StorageTemplateService extends BaseService {
       return;
     }
 
-    return this.databaseRepository.withLock(DatabaseLock.StorageTemplateMigration, async () => {
-      const { id, checksum, fileSizeInByte } = asset;
-      const target = stillPhoto || asset;
-      const selection = await this.albumRepository.getAssetFolder(target.id, target.ownerId);
-      if (selection?.conflict) {
-        this.logger.error(
-          `Folder placement conflict for asset ${target.id}: multiple eligible folder albums; no files moved`,
-        );
-        return false;
-      }
-      const folder = selection?.binding;
-      const config = await this.getConfig({ withCache: true });
-      if (!folder && !config.storageTemplate.enabled) {
-        return;
-      }
-      if (folder && folder.ownerId !== asset.ownerId) {
-        this.logger.error(`Folder placement owner mismatch for ${id}`);
-        return false;
-      }
-      if (folder && target.livePhotoVideoId) {
-        const motion = await this.assetJobRepository.getForStorageTemplateJob(target.livePhotoVideoId, {
-          includeHidden: true,
-        });
-        if (!motion || motion.isExternal || StorageCore.isAndroidMotionPath(motion.originalPath)) {
-          // Embedded Android motion remains upstream's derived-file special case.
-          if (!motion || motion.isExternal) {
-            return false;
-          }
-        } else {
-          const companion = await this.albumRepository.getAssetFolder(motion.id, motion.ownerId);
-          if (motion.ownerId !== target.ownerId || (companion?.binding && companion.binding.id !== folder.id)) {
-            this.logger.error(`Folder placement conflict for companion ${motion.id}; no files moved`);
-            return false;
-          }
-          await this.albumRepository.bindAssetFolder(motion.id, motion.ownerId, folder.id);
+    return this.databaseRepository.withLock(DatabaseLock.StorageTemplateMigration, () =>
+      this.databaseRepository.withAssetLock(asset.id, async () => {
+        const { id, checksum, fileSizeInByte } = asset;
+        const target = stillPhoto || asset;
+        const selection = await this.albumRepository.getAssetFolder(target.id, target.ownerId);
+        if (selection?.conflict) {
+          this.logger.error(
+            `Folder placement conflict for asset ${target.id}: multiple eligible folder albums; no files moved`,
+          );
+          return JobStatus.Skipped;
         }
-      }
-      if (folder) {
-        await this.albumRepository.bindAssetFolder(id, asset.ownerId, folder.id);
-      }
-      // A queued snapshot may predate a prior move. Always use the current path.
-      const current = folder
-        ? await this.assetJobRepository.getForStorageTemplateJob(id, { includeHidden: true })
-        : asset;
-      if (!current) {
-        return false;
-      }
-      const oldPath = current.originalPath;
-      const history = folder ? await this.moveRepository.getByEntity(id, AssetPathType.Original) : undefined;
-      const newPath = history?.newPath ?? (await this.getTemplatePath(current, metadata, stillPhoto, folder?.path));
-
-      if (!fileSizeInByte) {
-        this.logger.error(`Asset ${id} missing exif info, skipping storage template migration`);
-        return;
-      }
-
-      try {
-        await this.storageCore.moveFile({
-          entityId: id,
-          pathType: AssetPathType.Original,
-          oldPath,
-          newPath,
-          assetInfo: { sizeInBytes: fileSizeInByte, checksum },
-          ...(folder ? { safe: true } : {}),
-        });
-
-        const sidecarPath = getAssetFile(current.files, AssetFileType.Sidecar, { isEdited: false })?.path;
-        if (sidecarPath) {
-          await this.storageCore.moveFile({
-            entityId: id,
-            pathType: AssetFileType.Sidecar,
-            oldPath: sidecarPath,
-            newPath: `${newPath}.xmp`,
-            ...(folder ? { safe: true } : {}),
-          });
+        const folder = selection?.binding;
+        const config = await this.getConfig({ withCache: true });
+        if (!folder && !config.storageTemplate.enabled) {
+          return;
         }
-      } catch (error: any) {
-        this.logger.error(`Problem applying storage template`, error?.stack, { id, oldPath, newPath });
-        if (folder) {
+        if (folder && !(await this.assetJobRepository.hasMetadataExtracted(id))) {
+          this.logger.debug(`Folder placement waits for completed metadata extraction for ${id}`);
+          return JobStatus.Skipped;
+        }
+        if (folder && folder.ownerId !== asset.ownerId) {
+          this.logger.error(`Folder placement owner mismatch for ${id}`);
           return false;
         }
-      }
-      return true;
-    });
+        if (folder && target.livePhotoVideoId) {
+          const motion = await this.assetJobRepository.getForStorageTemplateJob(target.livePhotoVideoId, {
+            includeHidden: true,
+          });
+          if (!motion || motion.isExternal || StorageCore.isAndroidMotionPath(motion.originalPath)) {
+            // Embedded Android motion remains upstream's derived-file special case.
+            if (!motion || motion.isExternal) {
+              return false;
+            }
+          } else {
+            if (!(await this.assetJobRepository.hasMetadataExtracted(motion.id))) {
+              return JobStatus.Skipped;
+            }
+            const companion = await this.albumRepository.getAssetFolder(motion.id, motion.ownerId);
+            if (motion.ownerId !== target.ownerId || (companion?.binding && companion.binding.id !== folder.id)) {
+              this.logger.error(`Folder placement conflict for companion ${motion.id}; no files moved`);
+              return JobStatus.Skipped;
+            }
+            await this.albumRepository.bindAssetFolder(motion.id, motion.ownerId, folder.id);
+          }
+        }
+        if (folder) {
+          await this.albumRepository.bindAssetFolder(id, asset.ownerId, folder.id);
+        }
+        // A queued snapshot may predate a prior move. Always use the current path.
+        const current = folder
+          ? await this.assetJobRepository.getForStorageTemplateJob(id, { includeHidden: true })
+          : asset;
+        if (!current) {
+          return false;
+        }
+        const oldPath = current.originalPath;
+        const history = folder ? await this.moveRepository.getByEntity(id, AssetPathType.Original) : undefined;
+        const newPath = history?.newPath ?? (await this.getTemplatePath(current, metadata, stillPhoto, folder?.path));
+
+        if (!fileSizeInByte) {
+          this.logger.error(`Asset ${id} missing exif info, skipping storage template migration`);
+          return;
+        }
+
+        try {
+          await this.storageCore.moveFile({
+            entityId: id,
+            pathType: AssetPathType.Original,
+            oldPath,
+            newPath,
+            assetInfo: { sizeInBytes: fileSizeInByte, checksum },
+            ...(folder && { safe: true }),
+          });
+
+          const sidecarPath = getAssetFile(current.files, AssetFileType.Sidecar, { isEdited: false })?.path;
+          if (sidecarPath) {
+            await this.storageCore.moveFile({
+              entityId: id,
+              pathType: AssetFileType.Sidecar,
+              oldPath: sidecarPath,
+              newPath: `${newPath}.xmp`,
+              ...(folder && { safe: true }),
+            });
+          }
+        } catch (error: any) {
+          this.logger.error(`Problem applying storage template`, error?.stack, { id, oldPath, newPath });
+          if (folder) {
+            return false;
+          }
+        }
+        return true;
+      }),
+    );
   }
 
   private async getTemplatePath(

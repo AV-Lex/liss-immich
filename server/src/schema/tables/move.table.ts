@@ -1,4 +1,4 @@
-import { Column, type Generated, PrimaryGeneratedColumn, Table, Unique, Timestamp } from '@immich/sql-tools';
+import { Column, type Generated, PrimaryGeneratedColumn, Table, Timestamp, Unique } from '@immich/sql-tools';
 import type { PathType } from 'src/enum.js';
 
 @Table('move_history')
