@@ -1,6 +1,6 @@
 # Liss Immich — CURRENT
 
-RECORDED_DATE = EVENT_DATE = 2026-10-29
+RECORDED_DATE = EVENT_DATE = 2026-10-30
 ASSIGNMENT_ID = liss-immich-development
 STATE = D1_SOURCE_ACCEPTED / WAIT_OPERATOR_INSTALL
 INTEGRATION_BRANCH = liss
@@ -35,13 +35,17 @@ does not establish installed operation.
 ## Next dependency and owner
 
 Next owner: the separately assigned runtime/library operator installs the
-accepted source using the existing native image/Compose route in
-[the build, update and recovery guide](docs/docs/features/folder-albums.md).
-Keep the exact source/image receipt and matching database plus complete media
-snapshot. First verify a small synthetic library: opt-in first placement,
+accepted source into the existing native/no-Docker/no-ML installation using
+[the deployment-neutral native build/update/check/rollback contract](docs/docs/features/folder-albums.md#native-build-and-runtime-contract).
+The [D1 handoff correction](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6507850040)
+supersedes the earlier Compose installation assumption. Docker/Compose remains
+only a generic packaging/test route, not the HOME installation plan; do not
+create a parallel runtime. Infra owns concrete paths, units, users, configuration
+and commands in its private canon. Keep the exact source/native-artifact receipt
+and matching database plus complete media snapshot. First verify a small synthetic library: opt-in first placement,
 upload then later association and later uploads, stable IDs, readable paths,
 original bytes/hash/mtime, repeated processing and the documented recovery path.
-Return sanitized installed source/image and verification results to
+Return sanitized installed source/artifact and verification results to
 [the exact D1 task thread](https://github.com/AV-Lex/liss-immich/issues/2).
 Real-library deployment remains outside the development owner's authority.
 
