@@ -2,65 +2,62 @@
 
 RECORDED_DATE = EVENT_DATE = 2026-10-29
 ASSIGNMENT_ID = liss-immich-development
-STATE = D1_IMPLEMENTING / NATIVE_VERIFICATION
+STATE = D1_SOURCE_ACCEPTED / WAIT_OPERATOR_INSTALL
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
-## Current work
+## Accepted source
 
-[D0 — existing upstream architecture](https://github.com/AV-Lex/liss-immich/issues/1)
-is accepted by the assigned development owner. The compact map is in
-[LISS_FORK.md](LISS_FORK.md), verified against the pinned upstream baseline.
-Exact accepted map source:
-[5c1f87118bd7b7bb1cebbc8c01cc257bbd5a7603](https://github.com/AV-Lex/liss-immich/commit/5c1f87118bd7b7bb1cebbc8c01cc257bbd5a7603).
-The task thread records integration, published-file read-back and reproducible
-checks. Only documentation changed; no build, migration or deployment was needed.
-This is source acceptance, not installed/runtime verification.
+[D0](https://github.com/AV-Lex/liss-immich/issues/1) and R0 are accepted.
+[D1 — folder-album v0](https://github.com/AV-Lex/liss-immich/issues/2)
+is source-accepted and integrated through [PR #8](https://github.com/AV-Lex/liss-immich/pull/8).
+Exact reviewed candidate:
+[`6c58b0370eb3fd86cf8ead45fd9e9f521f60de93`](https://github.com/AV-Lex/liss-immich/commit/6c58b0370eb3fd86cf8ead45fd9e9f521f60de93).
+Integration:
+[`cb01a95f0a95da1e28169e4afb596a93a4dd7faf`](https://github.com/AV-Lex/liss-immich/commit/cb01a95f0a95da1e28169e4afb596a93a4dd7faf).
+Both have tree `0cb121fa55e6a0bb73a3572741ea98288e98d757`.
+`main` remains the unchanged upstream copy.
 
-## Next
+[Coverage, exact commands and independent reports](https://github.com/AV-Lex/liss-immich/issues/4#issuecomment-6504275965)
+and [full R1 result with owner disposition](https://github.com/AV-Lex/liss-immich/issues/4#issuecomment-6504510090)
+record source acceptance. Claude job
+`claude-liss / 9fb826c5-dee7-43cc-ba32-b86b8537e254` completed without
+surviving FAIL findings. Native server, PostgreSQL/Valkey/file, API/CLI,
+mobile and actual baseline-revert/start/download checks passed on the exact
+candidate tree. Matching synthetic DB/media snapshots and raw receipts are retained.
 
-The control pilot is accepted. D0 was integrated at
-[`7654062188accac093ccfff6f980c157019103b4`](https://github.com/AV-Lex/liss-immich/commit/7654062188accac093ccfff6f980c157019103b4).
-The development owner accepts R0 in [#4](https://github.com/AV-Lex/liss-immich/issues/4):
-Claude reviewed the exact D0 map above against the pinned baseline and returned
-PASS for the five required source questions. Job:
-`claude-liss / c73df3ac-8eee-4f75-bd0c-41e169cf719c`.
-The task thread preserves the full verdict, coverage limits and owner disposition;
-the map adds the verified timing/recovery cases to carry into D1 tests.
+Current web E2E stopped before tests on a registry rate limit; its matrix peer
+was cancelled. Prior checks passed on unchanged web source. Current web E2E,
+inherited self-hosted lint availability, registry export and proprietary Dart
+analysis limits remain explicit in the acceptance record. Source acceptance
+does not establish installed operation.
 
-The R0 start HOLD is released. The development owner accepted and recorded the
-[D1 implementation plan](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6500148683).
-The assigned author is implementing folder-album v0 on `feat/folder-album-v0-2`,
-targeting `liss`; [draft PR #8](https://github.com/AV-Lex/liss-immich/pull/8)
-holds the candidate. Targeted author checks and native synthetic CI are in
-progress. Next: resolve concrete test findings, independent verification of the
-exact corrected candidate, then bounded Claude R1 and owner acceptance before
-integration. The candidate includes an opt-in synthetic baseline restart/download
-check after native migration revert; its actual CI result is required before
-source acceptance, distinct from installed operator verification.
-Executable native regressions remain required. No unrelated backlog is assigned.
+## Next dependency and owner
 
-The assignment remains in rotation; it is not PARKED. Runtime/library deployment
-and installed verification belong to the separately assigned operator after a
-future source handoff. The actual execution holder and task history stay in the
-exact task thread.
+Next owner: the separately assigned runtime/library operator installs the
+accepted source using the existing native image/Compose route in
+[the build, update and recovery guide](docs/docs/features/folder-albums.md).
+Keep the exact source/image receipt and matching database plus complete media
+snapshot. First verify a small synthetic library: opt-in first placement,
+upload then later association and later uploads, stable IDs, readable paths,
+original bytes/hash/mtime, repeated processing and the documented recovery path.
+Return sanitized installed source/image and verification results to
+[the exact D1 task thread](https://github.com/AV-Lex/liss-immich/issues/2).
+Real-library deployment remains outside the development owner's authority.
+
+The development owner stays in rotation to review installed results, resolve
+concrete findings and deliver any agreed fixes through installation and verification.
+While this dependency is pending, do not select unrelated backlog or repeat an
+unchanged empty/blocker report. The assignment is not PARKED.
 
 ## Finish condition
 
-Accepted source and operator handoff lead to installation, not PARKED.
-Keep the assignment in rotation until the assigned operator has actually
-installed the change and verified the agreed behaviour in use.
-
-After successful installation and verification, ask the maintainer whether
-any concrete follow-up fixes remain. Complete the agreed fixes and verify
-their installed result. Only then, with the maintainer's explicit decision
-to finish this stage, record exact source and installation/result status,
-set PARKED and request removal after the active run ends.
-
-While waiting for installation or an answer, record the dependency and next
-owner here. Keep private operational evidence out of this public repository;
-a sanitized status is enough. Do not start an unrelated feature backlog.
-Preserve the fork and its results.
+After successful actual installation and verification, ask the maintainer
+whether concrete follow-up fixes remain and record the answer in #2. Complete
+any agreed fixes and verify their installed result. Only the maintainer's explicit
+decision to finish after those steps permits PARKED and a removal request after
+the active run ends. Source merge, handoff or issue closure alone is insufficient.
+Preserve source, results and recovery material.
 
 Branch policy and source entry: [LISS_FORK.md](LISS_FORK.md).
 Task detail and history stay in the existing issues.
