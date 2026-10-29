@@ -134,6 +134,9 @@ albums and unchanged upload/Add/Remove clients retain their normal contracts.
   reused and sidecar destinations are reserved. A retained move-history
   destination wins over a newly computed suffix on retry. Live Photo motion
   follows the still's binding; foreign-owned/external originals are excluded.
+  A preexisting stock intent finishes at its retained original/sidecar targets
+  before a fresh recoverable first-folder leg; success requires the chosen layout
+  to be complete. Failures retain current intent for explicit replay.
 - [`StorageCore`](server/src/cores/storage.core.ts) and the existing
   [`move_history`](server/src/schema/tables/move.table.ts) now retain source
   verification/timestamp proof for folder moves, verify new-only recovery without

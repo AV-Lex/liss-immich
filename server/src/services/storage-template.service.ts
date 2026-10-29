@@ -305,49 +305,64 @@ export class StorageTemplateService extends BaseService {
         if (folder) {
           await this.albumRepository.bindAssetFolder(id, asset.ownerId, folder.id);
         }
-        // A queued snapshot may predate a prior move. Always use the current path.
-        const current = folder
-          ? await this.assetJobRepository.getForStorageTemplateJob(id, { includeHidden: true })
-          : asset;
-        if (!current) {
-          return false;
-        }
-        const oldPath = current.originalPath;
-        const history = folder ? await this.moveRepository.getByEntity(id, AssetPathType.Original) : undefined;
-        const newPath = history?.newPath ?? (await this.getTemplatePath(current, metadata, stillPhoto, folder?.path));
-
         if (!fileSizeInByte) {
           this.logger.error(`Asset ${id} missing exif info, skipping storage template migration`);
           return;
         }
 
-        try {
-          await this.storageCore.moveFile({
-            entityId: id,
-            pathType: AssetPathType.Original,
-            oldPath,
-            newPath,
-            assetInfo: { sizeInBytes: fileSizeInByte, checksum },
-            ...(folder && { safe: true }),
-          });
-
-          const sidecarPath = getAssetFile(current.files, AssetFileType.Sidecar, { isEdited: false })?.path;
-          if (sidecarPath) {
-            await this.storageCore.moveFile({
-              entityId: id,
-              pathType: AssetFileType.Sidecar,
-              oldPath: sidecarPath,
-              newPath: `${newPath}.xmp`,
-              ...(folder && { safe: true }),
-            });
-          }
-        } catch (error: any) {
-          this.logger.error(`Problem applying storage template`, error?.stack, { id, oldPath, newPath });
-          if (folder) {
+        // Finish retained intent before first placement. A legacy stock target
+        // can be outside this folder; its recovery is not a completed layout.
+        for (let pass = 0; pass < 2; pass++) {
+          // A queued snapshot may predate either move. Refresh after recovery.
+          const current = folder
+            ? await this.assetJobRepository.getForStorageTemplateJob(id, { includeHidden: true })
+            : asset;
+          if (!current) {
             return false;
           }
+          const oldPath = current.originalPath;
+          const history = folder ? await this.moveRepository.getByEntity(id, AssetPathType.Original) : undefined;
+          const newPath = history?.newPath ?? (await this.getTemplatePath(current, metadata, stillPhoto, folder?.path));
+          const sidecarPath = getAssetFile(current.files, AssetFileType.Sidecar, { isEdited: false })?.path;
+          const sidecarHistory =
+            folder && sidecarPath ? await this.moveRepository.getByEntity(id, AssetFileType.Sidecar) : undefined;
+          const sidecarDestination = sidecarHistory?.newPath ?? `${newPath}.xmp`;
+          try {
+            await this.storageCore.moveFile({
+              entityId: id,
+              pathType: AssetPathType.Original,
+              oldPath,
+              newPath,
+              assetInfo: { sizeInBytes: fileSizeInByte, checksum },
+              ...(folder && { safe: true }),
+            });
+
+            if (sidecarPath) {
+              await this.storageCore.moveFile({
+                entityId: id,
+                pathType: AssetFileType.Sidecar,
+                oldPath: sidecarPath,
+                newPath: sidecarDestination,
+                ...(folder && { safe: true }),
+              });
+            }
+          } catch (error: any) {
+            this.logger.error(`Problem applying storage template`, error?.stack, { id, oldPath, newPath });
+            if (folder) {
+              return false;
+            }
+          }
+          if (
+            !folder ||
+            (path.resolve(path.dirname(newPath)) === path.resolve(folder.path) &&
+              (!sidecarPath || sidecarDestination === `${newPath}.xmp`))
+          ) {
+            return true;
+          }
+          this.logger.debug(`Recovered prior move for ${id}; completing first folder placement`);
         }
-        return true;
+        this.logger.error(`Folder placement remains incomplete for ${id}; replay the storage template job`);
+        return false;
       }),
     );
   }

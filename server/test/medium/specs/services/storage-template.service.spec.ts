@@ -229,6 +229,128 @@ describe('folder album DB/jobs and real files', () => {
     expect((await ctx.get(AssetRepository).getById(asset.id))?.folderAlbumId).toBe(a.id);
   });
 
+  it.each([
+    { intent: 'legacy-stock' },
+    { intent: 'same-folder' },
+    { intent: 'legacy-stock', interrupt: AssetPathType.Original },
+    { intent: 'legacy-stock', interrupt: AssetFileType.Sidecar },
+  ])(
+    'finishes $intent history before first layout of still, XMP and motion (interrupt=$interrupt)',
+    async ({ intent, interrupt }) => {
+      const { sut: albums, ctx } = setup(AlbumService);
+      const { user } = await ctx.newUser();
+      const oldPath = join(directory, 'legacy-upload.jpg');
+      const oldSidecar = `${oldPath}.xmp`;
+      const oldMotion = join(directory, 'legacy-motion.mov');
+      const sidecarBytes = Buffer.from('<xmp>legacy sidecar</xmp>');
+      const motionBytes = Buffer.from('legacy motion');
+      for (const [path, data] of [
+        [oldPath, bytes],
+        [oldSidecar, sidecarBytes],
+        [oldMotion, motionBytes],
+      ] as const) {
+        await writeFile(path, data);
+        await utimes(path, mtime, mtime);
+      }
+      const { asset: motion } = await ctx.newAsset({
+        ownerId: user.id,
+        originalPath: oldMotion,
+        originalFileName: 'motion.mov',
+        type: AssetType.Video,
+        visibility: AssetVisibility.Hidden,
+        checksum: createHash('sha1').update(motionBytes).digest(),
+      });
+      const { asset } = await ctx.newAsset({
+        ownerId: user.id,
+        originalPath: oldPath,
+        originalFileName: 'photo.jpg',
+        checksum,
+        livePhotoVideoId: motion.id,
+      });
+      const assets = ctx.get(AssetRepository);
+      for (const [id, size] of [
+        [asset.id, bytes.length],
+        [motion.id, motionBytes.length],
+      ] as const) {
+        await assets.upsertExif({ lockedPropertiesBehavior: 'override', exif: { assetId: id, fileSizeInByte: size } });
+        await assets.upsertJobStatus({ assetId: id, metadataExtractedAt: new Date() });
+      }
+      await assets.upsertFile({ assetId: asset.id, type: AssetFileType.Sidecar, path: oldSidecar });
+      const { album } = await ctx.newAlbum({ ownerId: user.id, albumName: 'First layout' }, [asset.id]);
+      const enabled = await albums.update(factory.auth({ user }), album.id, { isFolderAlbum: true });
+      const folder = enabled.folderAlbum!.path;
+      const legacyTarget =
+        intent === 'legacy-stock' ? join(directory, 'stock', 'old-intent.jpg') : join(folder, 'photo+2.jpg');
+      const finalOriginal = intent === 'legacy-stock' ? join(folder, 'photo.jpg') : legacyTarget;
+      const moves = ctx.get(MoveRepository);
+      await moves.create({ entityId: asset.id, pathType: AssetPathType.Original, oldPath, newPath: legacyTarget });
+      await moves.create({
+        entityId: asset.id,
+        pathType: AssetFileType.Sidecar,
+        oldPath: oldSidecar,
+        newPath: `${legacyTarget}.xmp`,
+      });
+      expect((await assets.getById(asset.id))?.folderAlbumId).toBeNull();
+      const placement = setup(StorageTemplateService);
+      placement.sut.onConfigInit({ newConfig: defaults });
+      const storage = placement.ctx.get(StorageRepository);
+      const realRename = storage.rename.bind(storage);
+      let interrupted = false;
+      const rename = vi.spyOn(storage, 'rename').mockImplementation((oldPath, newPath) => {
+        const interruptedTarget = interrupt === AssetPathType.Original ? finalOriginal : `${finalOriginal}.xmp`;
+        if (interrupt && !interrupted && newPath === interruptedTarget) {
+          interrupted = true;
+          throw new Error('synthetic first-folder leg failure after legacy recovery');
+        }
+        return realRename(oldPath, newPath);
+      });
+      const result = await placement.sut.handleMigrationSingle({ id: asset.id });
+      expect(result).toBe(interrupt ? JobStatus.Failed : JobStatus.Success);
+      if (interrupt) {
+        const retained = await moves.getByEntity(asset.id, interrupt);
+        expect(retained?.newPath).toBe(interrupt === AssetPathType.Original ? finalOriginal : `${finalOriginal}.xmp`);
+        expect(retained?.oldPath).toBe(interrupt === AssetPathType.Original ? legacyTarget : `${legacyTarget}.xmp`);
+        expect(new Date(retained!.sourceMtime!).getTime()).toBe(mtime.getTime());
+        expect(await readFile(retained!.oldPath)).toEqual(interrupt === AssetPathType.Original ? bytes : sidecarBytes);
+        const restarted = setup(StorageTemplateService);
+        restarted.sut.onConfigInit({ newConfig: defaults });
+        await expect(restarted.sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Success);
+      }
+      const originalMoves = rename.mock.calls.filter(
+        ([, target]) => target === legacyTarget || target === finalOriginal,
+      );
+      expect(originalMoves.map(([, target]) => target)).toEqual(
+        intent === 'legacy-stock' ? [legacyTarget, finalOriginal] : [legacyTarget],
+      );
+      expect((await assets.getById(asset.id))?.originalPath).toBe(finalOriginal);
+      expect((await assets.getById(asset.id))?.folderAlbumId).toBe(album.id);
+      const current = await ctx.get(AssetJobRepository).getForSidecarCheckJob(asset.id);
+      expect(current?.files.find((file) => file.type === AssetFileType.Sidecar)?.path).toBe(`${finalOriginal}.xmp`);
+      expect((await assets.getById(motion.id))?.originalPath).toBe(join(folder, 'photo.mov'));
+      expect((await assets.getById(motion.id))?.folderAlbumId).toBe(album.id);
+      for (const [path, data] of [
+        [finalOriginal, bytes],
+        [`${finalOriginal}.xmp`, sidecarBytes],
+        [join(folder, 'photo.mov'), motionBytes],
+      ] as const) {
+        const actual = await readFile(path);
+        expect(actual).toEqual(data);
+        expect(createHash('sha1').update(actual).digest()).toEqual(createHash('sha1').update(data).digest());
+        expect((await stat(path)).mtime.getTime()).toBe(mtime.getTime());
+      }
+      expect(await moves.getByEntity(asset.id, AssetPathType.Original)).toBeUndefined();
+      expect(await moves.getByEntity(asset.id, AssetFileType.Sidecar)).toBeUndefined();
+      await expect(stat(oldPath)).rejects.toMatchObject({ code: 'ENOENT' });
+      if (intent === 'legacy-stock') {
+        await expect(stat(legacyTarget)).rejects.toMatchObject({ code: 'ENOENT' });
+        await expect(stat(`${legacyTarget}.xmp`)).rejects.toMatchObject({ code: 'ENOENT' });
+      }
+      const completedRenameCount = rename.mock.calls.length;
+      await expect(placement.sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Success);
+      expect(rename).toHaveBeenCalledTimes(completedRenameCount);
+    },
+  );
+
   it('recovers partial still/sidecar/motion placement with the same binding and timestamps', async () => {
     const { sut: albums, ctx } = setup(AlbumService);
     const { user } = await ctx.newUser();

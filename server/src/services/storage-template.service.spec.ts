@@ -1242,6 +1242,33 @@ describe('folder album first placement', () => {
     });
   });
 
+  it('finishes a retained stock destination before first placement instead of reporting an outside layout complete', async () => {
+    const legacyDestination = '/data/library/stock/old-intent.jpg';
+    mocks.move.getByEntity.mockResolvedValueOnce({
+      id: 'legacy-move',
+      entityId: asset.id,
+      pathType: AssetPathType.Original,
+      oldPath: asset.originalPath,
+      newPath: legacyDestination,
+      sourceSize: null,
+      sourceChecksum: null,
+      sourceMtime: null,
+      sourceAtime: null,
+    });
+    move.mockImplementation(({ newPath }: { newPath: string }) => {
+      asset.originalPath = newPath;
+      return Promise.resolve(true);
+    });
+    await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Success);
+    expect(move).toHaveBeenNthCalledWith(1, expect.objectContaining({ newPath: legacyDestination, safe: true }));
+    expect(move).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ oldPath: legacyDestination, newPath: `${folder.path}/photo.jpg`, safe: true }),
+    );
+    expect(asset.originalPath).toBe(`${folder.path}/photo.jpg`);
+    expect(mocks.album.bindAssetFolder).toHaveBeenCalledTimes(1);
+  });
+
   it('defers first association until actual metadata completion, then retries through the existing event', async () => {
     mocks.assetJob.hasMetadataExtracted.mockResolvedValue(false);
     await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Skipped);

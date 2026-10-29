@@ -102,7 +102,10 @@ that asset and occupy one of the four lock sessions; no new automatic timeout or
 retry policy is introduced.
 Association-triggered jobs are independent of an already active metadata job
 for the same asset. Retries retain the recorded destination and the first folder
-binding. A duplicate ordinary Add can repair an earlier membership/enqueue gap.
+binding. If a retained stock move predates the first assignment, the job finishes
+that recorded intent before completing the first folder layout with a fresh
+durable move. Original and sidecar history destinations are not retargeted during
+recovery. A duplicate ordinary Add can repair an earlier membership/enqueue gap.
 The existing queue has no new automatic-retry guarantee; use an explicit replay
 after resolving a reported error.
 
@@ -131,6 +134,8 @@ the completed readable layout in a source rollback:
 2. Capture and verify a matching **post-placement database plus complete media**
    snapshot. Retain this snapshot and binding information separately throughout
    rollback; schema down discards folder policy, not original paths or files.
+   Preserve fractional mtimes (for example, GNU tar `--format=pax`), and verify
+   extracted sample bytes, hash and mtime against the live receipt.
 3. With the D1 source/toolchain, run the native last-migration revert
    (`pnpm --filter immich migrations:revert`). Confirm the last migration is
    `1793289600000-FolderAlbums`; do not revert another migration. Its down guard
