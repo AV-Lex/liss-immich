@@ -1,4 +1,4 @@
-import { Column, type Generated, PrimaryGeneratedColumn, Table, Unique } from '@immich/sql-tools';
+import { Column, type Generated, PrimaryGeneratedColumn, Table, Unique, Timestamp } from '@immich/sql-tools';
 import type { PathType } from 'src/enum.js';
 
 @Table('move_history')
@@ -21,4 +21,16 @@ export class MoveTable {
 
   @Column({ type: 'character varying' })
   newPath!: string;
+
+  @Column({ type: 'bigint', nullable: true })
+  sourceSize!: Generated<number | null>;
+
+  @Column({ type: 'bytea', nullable: true })
+  sourceChecksum!: Generated<Buffer | null>;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  sourceMtime!: Generated<Timestamp | null>;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  sourceAtime!: Generated<Timestamp | null>;
 }

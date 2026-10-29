@@ -140,23 +140,35 @@ export class StorageTemplateService extends BaseService {
     await this.jobRepository.queue({ name: JobName.StorageTemplateMigrationSingle, data: { source, id: assetId } });
   }
 
+  @OnEvent({ name: 'AlbumAssetsChanged' })
+  async onAlbumAssetsChanged({ albumId, assetIds }: ArgOf<'AlbumAssetsChanged'>) {
+    if (!(await this.albumRepository.getFolderAlbum(albumId))?.enabled) {
+      return;
+    }
+    for (const id of new Set(assetIds)) {
+      await this.jobRepository.queue({
+        name: JobName.StorageTemplateMigrationSingle,
+        data: { id, folderAssociation: true },
+      });
+    }
+  }
+
   @OnJob({ name: JobName.StorageTemplateMigrationSingle, queue: QueueName.StorageTemplateMigration })
   async handleMigrationSingle({ id }: JobOf<JobName.StorageTemplateMigrationSingle>): Promise<JobStatus> {
     const config = await this.getConfig({ withCache: true });
     const isStorageTemplateEnabled = config.storageTemplate.enabled;
-    if (!isStorageTemplateEnabled) {
-      return JobStatus.Skipped;
-    }
-
     const asset = await this.assetJobRepository.getForStorageTemplateJob(id);
     if (!asset) {
-      return JobStatus.Failed;
+      return isStorageTemplateEnabled ? JobStatus.Failed : JobStatus.Skipped;
     }
 
     const user = await this.userRepository.get(asset.ownerId, {});
     const storageLabel = user?.storageLabel || null;
     const filename = asset.originalFileName || asset.id;
-    await this.moveAsset(asset, { storageLabel, filename });
+    const result = await this.moveAsset(asset, { storageLabel, filename });
+    if (result !== true) {
+      return result === false ? JobStatus.Failed : JobStatus.Skipped;
+    }
 
     // move motion part of live photo
     if (asset.livePhotoVideoId) {
@@ -167,7 +179,9 @@ export class StorageTemplateService extends BaseService {
         return JobStatus.Failed;
       }
       const motionFilename = getLivePhotoMotionFilename(filename, livePhotoVideo.originalPath);
-      await this.moveAsset(livePhotoVideo, { storageLabel, filename: motionFilename }, asset);
+      if ((await this.moveAsset(livePhotoVideo, { storageLabel, filename: motionFilename }, asset)) === false) {
+        return JobStatus.Failed;
+      }
     }
     return JobStatus.Success;
   }
@@ -175,12 +189,8 @@ export class StorageTemplateService extends BaseService {
   @OnJob({ name: JobName.StorageTemplateMigration, queue: QueueName.StorageTemplateMigration })
   async handleMigration(): Promise<JobStatus> {
     this.logger.log('Starting storage template migration');
-    const { storageTemplate } = await this.getConfig({ withCache: true });
-    const { enabled } = storageTemplate;
-    if (!enabled) {
-      this.logger.log('Storage template migration disabled, skipping');
-      return JobStatus.Skipped;
-    }
+
+    let failed = false;
 
     await this.moveRepository.cleanMoveHistory();
 
@@ -191,7 +201,11 @@ export class StorageTemplateService extends BaseService {
       const user = users.find((user) => user.id === asset.ownerId);
       const storageLabel = user?.storageLabel || null;
       const filename = asset.originalFileName || asset.id;
-      await this.moveAsset(asset, { storageLabel, filename });
+      const result = await this.moveAsset(asset, { storageLabel, filename });
+      failed ||= result === false;
+      if (result !== true) {
+        continue;
+      }
 
       if (!asset.livePhotoVideoId) {
         continue;
@@ -206,7 +220,8 @@ export class StorageTemplateService extends BaseService {
       }
 
       const motionFilename = getLivePhotoMotionFilename(filename, livePhotoVideo.originalPath);
-      await this.moveAsset(livePhotoVideo, { storageLabel, filename: motionFilename }, asset);
+      const motionResult = await this.moveAsset(livePhotoVideo, { storageLabel, filename: motionFilename }, asset);
+      failed ||= motionResult === false;
     }
 
     this.logger.debug('Cleaning up empty directories...');
@@ -215,7 +230,7 @@ export class StorageTemplateService extends BaseService {
 
     this.logger.log('Finished storage template migration');
 
-    return JobStatus.Success;
+    return failed ? JobStatus.Failed : JobStatus.Success;
   }
 
   @OnEvent({ name: 'AssetDelete' })
@@ -232,9 +247,55 @@ export class StorageTemplateService extends BaseService {
     }
 
     return this.databaseRepository.withLock(DatabaseLock.StorageTemplateMigration, async () => {
-      const { id, originalPath, checksum, fileSizeInByte } = asset;
-      const oldPath = originalPath;
-      const newPath = await this.getTemplatePath(asset, metadata, stillPhoto);
+      const { id, checksum, fileSizeInByte } = asset;
+      const target = stillPhoto || asset;
+      const selection = await this.albumRepository.getAssetFolder(target.id, target.ownerId);
+      if (selection?.conflict) {
+        this.logger.error(
+          `Folder placement conflict for asset ${target.id}: multiple eligible folder albums; no files moved`,
+        );
+        return false;
+      }
+      const folder = selection?.binding;
+      const config = await this.getConfig({ withCache: true });
+      if (!folder && !config.storageTemplate.enabled) {
+        return;
+      }
+      if (folder && folder.ownerId !== asset.ownerId) {
+        this.logger.error(`Folder placement owner mismatch for ${id}`);
+        return false;
+      }
+      if (folder && target.livePhotoVideoId) {
+        const motion = await this.assetJobRepository.getForStorageTemplateJob(target.livePhotoVideoId, {
+          includeHidden: true,
+        });
+        if (!motion || motion.isExternal || StorageCore.isAndroidMotionPath(motion.originalPath)) {
+          // Embedded Android motion remains upstream's derived-file special case.
+          if (!motion || motion.isExternal) {
+            return false;
+          }
+        } else {
+          const companion = await this.albumRepository.getAssetFolder(motion.id, motion.ownerId);
+          if (motion.ownerId !== target.ownerId || (companion?.binding && companion.binding.id !== folder.id)) {
+            this.logger.error(`Folder placement conflict for companion ${motion.id}; no files moved`);
+            return false;
+          }
+          await this.albumRepository.bindAssetFolder(motion.id, motion.ownerId, folder.id);
+        }
+      }
+      if (folder) {
+        await this.albumRepository.bindAssetFolder(id, asset.ownerId, folder.id);
+      }
+      // A queued snapshot may predate a prior move. Always use the current path.
+      const current = folder
+        ? await this.assetJobRepository.getForStorageTemplateJob(id, { includeHidden: true })
+        : asset;
+      if (!current) {
+        return false;
+      }
+      const oldPath = current.originalPath;
+      const history = folder ? await this.moveRepository.getByEntity(id, AssetPathType.Original) : undefined;
+      const newPath = history?.newPath ?? (await this.getTemplatePath(current, metadata, stillPhoto, folder?.path));
 
       if (!fileSizeInByte) {
         this.logger.error(`Asset ${id} missing exif info, skipping storage template migration`);
@@ -248,20 +309,26 @@ export class StorageTemplateService extends BaseService {
           oldPath,
           newPath,
           assetInfo: { sizeInBytes: fileSizeInByte, checksum },
+          ...(folder ? { safe: true } : {}),
         });
 
-        const sidecarPath = getAssetFile(asset.files, AssetFileType.Sidecar, { isEdited: false })?.path;
+        const sidecarPath = getAssetFile(current.files, AssetFileType.Sidecar, { isEdited: false })?.path;
         if (sidecarPath) {
           await this.storageCore.moveFile({
             entityId: id,
             pathType: AssetFileType.Sidecar,
             oldPath: sidecarPath,
             newPath: `${newPath}.xmp`,
+            ...(folder ? { safe: true } : {}),
           });
         }
       } catch (error: any) {
         this.logger.error(`Problem applying storage template`, error?.stack, { id, oldPath, newPath });
+        if (folder) {
+          return false;
+        }
       }
+      return true;
     });
   }
 
@@ -269,6 +336,7 @@ export class StorageTemplateService extends BaseService {
     asset: StorageAsset,
     metadata: MoveAssetMetadata,
     stillPhoto?: StorageAsset,
+    folderPath?: string,
   ): Promise<string> {
     const { storageLabel, filename } = metadata;
 
@@ -279,7 +347,7 @@ export class StorageTemplateService extends BaseService {
       let extension = getFilenameExtension(source).split('.').pop() as string;
       const sanitized = sanitize(path.basename(filenameWithoutExtension, `.${extension}`));
       extension = extension?.toLowerCase();
-      const rootPath = StorageCore.getLibraryFolder({ id: asset.ownerId, storageLabel });
+      const rootPath = folderPath ?? StorageCore.getLibraryFolder({ id: asset.ownerId, storageLabel });
 
       switch (extension) {
         case 'jpeg':
@@ -312,7 +380,7 @@ export class StorageTemplateService extends BaseService {
       let albumEndDate = null;
       const assetForMetadata = stillPhoto || asset;
 
-      if (this.template.needsAlbum) {
+      if (!folderPath && this.template.needsAlbum) {
         // For motion videos, use the still photo's album information since motion videos
         // don't have album metadata attached directly
         const albums = await this.albumRepository.getByAssetId(assetForMetadata.ownerId, assetForMetadata.id);
@@ -330,17 +398,19 @@ export class StorageTemplateService extends BaseService {
 
       // For motion videos that are part of live photos, use the still photo's date
       // to ensure both parts end up in the same folder
-      const storagePath = this.render(this.template.compiled, {
-        asset: assetForMetadata,
-        filename: sanitized,
-        extension,
-        albumName,
-        albumStartDate,
-        albumEndDate,
-        make: assetForMetadata.make,
-        model: assetForMetadata.model,
-        lensModel: assetForMetadata.lensModel,
-      });
+      const storagePath = folderPath
+        ? sanitized || asset.id
+        : this.render(this.template.compiled, {
+            asset: assetForMetadata,
+            filename: sanitized,
+            extension,
+            albumName,
+            albumStartDate,
+            albumEndDate,
+            make: assetForMetadata.make,
+            model: assetForMetadata.model,
+            lensModel: assetForMetadata.lensModel,
+          });
       const fullPath = path.normalize(path.join(rootPath, storagePath));
       let destination = `${fullPath}.${extension}`;
 
@@ -379,7 +449,12 @@ export class StorageTemplateService extends BaseService {
 
       while (true) {
         const isExists = await this.storageRepository.checkFileExists(destination);
-        if (!isExists) {
+        const sidecarPath = getAssetFile(asset.files, AssetFileType.Sidecar, { isEdited: false })?.path;
+        const sidecarCollision =
+          folderPath &&
+          destination + '.xmp' !== sidecarPath &&
+          (await this.storageRepository.checkFileExists(destination + '.xmp'));
+        if (!isExists && !sidecarCollision) {
           break;
         }
 
@@ -389,6 +464,9 @@ export class StorageTemplateService extends BaseService {
 
       return destination;
     } catch (error: any) {
+      if (folderPath) {
+        throw error;
+      }
       this.logger.error(`Unable to get template path for ${filename}: ${error}`);
       return asset.originalPath;
     }

@@ -74,6 +74,7 @@ export class AlbumFactory {
   build() {
     return {
       ...this.value,
+      folderAlbum: null,
       assets: this.#assets.map((asset) => asset.build()),
       albumUsers: this.#albumUsers.map((albumUser) => albumUser.build()),
       sharedLinks: this.#sharedLinks,

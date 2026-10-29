@@ -72,6 +72,10 @@ const AlbumsAddAssetsResponseSchema = z
 const UpdateAlbumSchema = z
   .object({
     albumName: z.string().optional().describe('Album name'),
+    isFolderAlbum: z
+      .boolean()
+      .optional()
+      .describe('Owner opt-in to first physical placement; existing bindings never move on unmark'),
     // TODO: drop the empty-string-to-null transform in v4 (clients should send null)
     description: z
       .string()
@@ -136,9 +140,12 @@ const ContributorCountResponseSchema = z
   })
   .meta({ id: 'ContributorCountResponseDto' });
 
+const FolderAlbumSchema = z.object({ enabled: z.boolean(), path: z.string() }).meta({ id: 'FolderAlbumResponseDto' });
+
 export const AlbumResponseSchema = z
   .object({
     id: z.uuidv4().describe('Album ID'),
+    folderAlbum: FolderAlbumSchema.optional(),
     albumName: z.string().describe('Album name'),
     description: z
       .string()
@@ -216,6 +223,7 @@ export class AlbumResponseDto extends createZodDto(AlbumResponseSchema) {}
 class AlbumUserResponseDto extends createZodDto(AlbumUserResponseSchema) {}
 
 export type MapAlbumDto = {
+  folderAlbum?: { enabled: boolean; path: string } | null;
   albumUsers?: AlbumUser[];
   assets?: ShallowDehydrateObject<MapAsset>[];
   sharedLinks?: ShallowDehydrateObject<AuthSharedLink>[];
@@ -255,6 +263,9 @@ export const mapAlbum = (entity: MaybeDehydrated<MapAlbumDto>): AlbumResponseDto
   }
 
   return {
+    ...(entity.folderAlbum
+      ? { folderAlbum: { enabled: entity.folderAlbum.enabled, path: entity.folderAlbum.path } }
+      : {}),
     albumName: entity.albumName,
     // TODO: return null instead of '' in v4
     description: entity.description ?? '',

@@ -856,6 +856,10 @@ export type ContributorCountResponseDto = {
     /** User ID */
     userId: string;
 };
+export type FolderAlbumResponseDto = {
+    enabled: boolean;
+    path: string;
+};
 export type AlbumResponseDto = {
     /** Album name */
     albumName: string;
@@ -872,6 +876,7 @@ export type AlbumResponseDto = {
     description: string;
     /** UTC representation of (local) end date (latest asset) */
     endDate?: string;
+    folderAlbum?: FolderAlbumResponseDto;
     /** Has shared link */
     hasSharedLink: boolean;
     /** Album ID */
@@ -931,6 +936,8 @@ export type UpdateAlbumDto = {
     description?: string | null;
     /** Enable activity feed */
     isActivityEnabled?: boolean;
+    /** Owner opt-in to first physical placement; existing bindings never move on unmark */
+    isFolderAlbum?: boolean;
     order?: AssetOrder;
 };
 export type BulkIdsDto = {

@@ -16,6 +16,7 @@ import { Chunked, ChunkedArray, ChunkedSet, DummyValue, GenerateSql } from 'src/
 import { AlbumUserCreateDto, MapAlbumDto } from 'src/dtos/album.dto.js';
 import { AlbumUserRole } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
+import { FolderAlbumTable } from 'src/schema/tables/folder-album.table.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
 import { asUuid, dummy, withDefaultVisibility } from 'src/utils/database.js';
@@ -46,6 +47,14 @@ const withAlbumUsers = (authUserId?: string) => (eb: ExpressionBuilder<DB, 'albu
   )
     .$notNull()
     .as('albumUsers');
+
+const withFolderAlbum = (eb: ExpressionBuilder<DB, 'album'>) =>
+  jsonObjectFrom(
+    eb
+      .selectFrom('folder_album')
+      .select(['folder_album.enabled', 'folder_album.path'])
+      .whereRef('folder_album.id', '=', 'album.id'),
+  ).as('folderAlbum');
 
 const withSharedLink = (eb: ExpressionBuilder<DB, 'album'>) =>
   jsonArrayFrom(
@@ -86,12 +95,70 @@ const isAlbumOwned = (ownerId: string) => (eb: ExpressionBuilder<DB, 'album'>) =
 export class AlbumRepository {
   constructor(@InjectKysely() private db: Kysely<DB>) {}
 
+  getFolderAlbum(id: string) {
+    return this.db.selectFrom('folder_album').selectAll().where('id', '=', id).executeTakeFirst();
+  }
+
+  async setFolderAlbum(value: Insertable<FolderAlbumTable>) {
+    return this.db
+      .insertInto('folder_album')
+      .values(value)
+      .onConflict((oc) => oc.column('id').doUpdateSet({ enabled: value.enabled }))
+      .returningAll()
+      .executeTakeFirstOrThrow();
+  }
+
+  async disableFolderAlbum(id: string) {
+    await this.db.updateTable('folder_album').set({ enabled: false }).where('id', '=', id).execute();
+  }
+
+  getFolderAssetIds(albumId: string) {
+    return this.db.selectFrom('album_asset').select('assetId').where('albumId', '=', albumId).execute();
+  }
+
+  // Called under StorageTemplateMigration's lock. Read the persisted first binding,
+  // even if the queued asset snapshot predates it or its logical album is gone.
+  async getAssetFolder(assetId: string, ownerId: string) {
+    const asset = await this.db
+      .selectFrom('asset')
+      .select('folderAlbumId')
+      .where('id', '=', assetId)
+      .where('ownerId', '=', ownerId)
+      .executeTakeFirst();
+    if (asset?.folderAlbumId) {
+      return { binding: await this.getFolderAlbum(asset.folderAlbumId), conflict: false };
+    }
+    const candidates = await this.db
+      .selectFrom('folder_album')
+      .innerJoin('album_asset', 'album_asset.albumId', 'folder_album.id')
+      .innerJoin('album', 'album.id', 'folder_album.id')
+      .selectAll('folder_album')
+      .where('album_asset.assetId', '=', assetId)
+      .where('folder_album.ownerId', '=', ownerId)
+      .where('folder_album.enabled', '=', true)
+      .where('album.deletedAt', 'is', null)
+      .orderBy('folder_album.id')
+      .execute();
+    return { binding: candidates.length === 1 ? candidates[0] : undefined, conflict: candidates.length > 1 };
+  }
+
+  async bindAssetFolder(assetId: string, ownerId: string, folderAlbumId: string) {
+    await this.db
+      .updateTable('asset')
+      .set({ folderAlbumId })
+      .where('id', '=', assetId)
+      .where('ownerId', '=', ownerId)
+      .where('folderAlbumId', 'is', null)
+      .execute();
+  }
+
   @GenerateSql({ params: [DummyValue.UUID, { withAssets: true }, DummyValue.UUID] })
   getById(id: string, options: AlbumInfoOptions, authUserId?: string) {
     return this.db
       .with('album_user', (qb) => qb.selectFrom('album_user').selectAll().where('album_user.albumId', '=', id))
       .selectFrom('album')
       .selectAll('album')
+      .select(withFolderAlbum)
       .where('album.id', '=', id)
       .where('album.deletedAt', 'is', null)
       .select(withAlbumUsers(authUserId))
@@ -106,6 +173,7 @@ export class AlbumRepository {
     return this.db
       .selectFrom('album')
       .selectAll('album')
+      .select(withFolderAlbum)
       .innerJoin('album_asset', 'album_asset.albumId', 'album.id')
       .where((eb) =>
         eb.exists(
@@ -215,6 +283,7 @@ export class AlbumRepository {
   ): Promise<MapAlbumDto[]> {
     return this.buildAlbumBaseQuery(ownerId, options)
       .selectAll('album')
+      .select(withFolderAlbum)
       .select(withAlbumUsers(ownerId))
       .select(withSharedLink)
       .$if(!!options.id, (qb) => qb.where('album.id', '=', options.id!))
@@ -350,6 +419,7 @@ export class AlbumRepository {
       )
       .selectFrom('album')
       .selectAll('album')
+      .select(withFolderAlbum)
       .select(withAlbumUsers(authUserId))
       .select(withAssets)
       .$narrowType<{ assets: NotNull }>()
@@ -364,13 +434,17 @@ export class AlbumRepository {
       .set(album)
       .where('album.id', '=', id)
       .returningAll('album')
+      .returning(withFolderAlbum)
       .returning(withSharedLink)
       .returning(withAlbumUsers(authUserId))
       .executeTakeFirstOrThrow();
   }
 
   async delete(id: string): Promise<void> {
-    await this.db.deleteFrom('album').where('id', '=', id).execute();
+    await this.db.transaction().execute(async (db) => {
+      await db.updateTable('folder_album').set({ enabled: false }).where('id', '=', id).execute();
+      await db.deleteFrom('album').where('id', '=', id).execute();
+    });
   }
 
   @Chunked({ chunkSize: 30_000 })

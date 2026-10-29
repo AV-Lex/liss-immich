@@ -1,4 +1,4 @@
-import { LoginResponseDto, getAllAlbums, getAssetStatistics } from '@immich/sdk';
+import { LoginResponseDto, getAllAlbums, getAssetStatistics, updateAlbumInfo } from '@immich/sdk';
 import { cpSync, readFileSync } from 'node:fs';
 import { mkdir, readdir, rm, symlink } from 'node:fs/promises';
 import { asKeyAuth, immichCli, specialCharStrings, testAssetDir, utils } from 'src/utils.js';
@@ -201,6 +201,33 @@ describe(`immich upload`, () => {
 
       const assets = await getAssetStatistics({}, { headers: asKeyAuth(key) });
       expect(assets.total).toBe(0);
+    });
+
+    it('keeps an ordinary CLI album ID when explicitly enabled and later duplicate uploads associate', async () => {
+      const initial = await immichCli(['upload', `${testAssetDir}/albums/nature/`, '--recursive', '--album']);
+      expect(initial.exitCode).toBe(0);
+      const [album] = await getAllAlbums({}, { headers: asKeyAuth(key) });
+      const enabled = await updateAlbumInfo(
+        { id: album.id, updateAlbumDto: { isFolderAlbum: true } },
+        { headers: asKeyAuth(key) },
+      );
+      const client = await utils.connectDatabase();
+      await expect
+        .poll(
+          async () =>
+            Number(
+              (await client.query('SELECT count(*) AS count FROM asset WHERE "folderAlbumId" = $1', [album.id])).rows[0]
+                .count,
+            ),
+          { timeout: 15_000 },
+        )
+        .toBe(9);
+      const replay = await immichCli(['upload', `${testAssetDir}/albums/nature/`, '--recursive', '--album']);
+      expect(replay.exitCode).toBe(0);
+      const [after] = await getAllAlbums({}, { headers: asKeyAuth(key) });
+      expect(after.id).toBe(album.id);
+      expect(after.folderAlbum?.path).toBe(enabled.folderAlbum?.path);
+      expect((await getAssetStatistics({}, { headers: asKeyAuth(key) })).total).toBe(9);
     });
 
     it('should have accurate dry run', async () => {

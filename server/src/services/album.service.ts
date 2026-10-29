@@ -14,8 +14,11 @@ import {
 import { BulkIdErrorReason, BulkIdResponseDto, BulkIdsDto } from 'src/dtos/asset-ids.response.dto.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { MapMarkerResponseDto } from 'src/dtos/map.dto.js';
-import { AlbumUserRole, Permission } from 'src/enum.js';
+import { AlbumUserRole, DatabaseLock, Permission } from 'src/enum.js';
 import { AlbumAssetCount, AlbumInfoOptions } from 'src/repositories/album.repository.js';
+import path from 'node:path';
+import sanitize from 'sanitize-filename';
+import { StorageCore } from 'src/cores/storage.core.js';
 import { BaseService } from 'src/services/base.service.js';
 import { addAssets, removeAssets } from 'src/utils/asset.util.js';
 import { asDateTimeString } from 'src/utils/date.js';
@@ -148,6 +151,36 @@ export class AlbumService extends BaseService {
         throw new BadRequestException('Invalid album thumbnail');
       }
     }
+    if (dto.isFolderAlbum !== undefined) {
+      if (
+        auth.sharedLink ||
+        !album.albumUsers.some(({ user, role }) => user.id === auth.user.id && role === AlbumUserRole.Owner)
+      ) {
+        throw new BadRequestException('Only the album owner can change folder placement');
+      }
+      await this.databaseRepository.withLock(DatabaseLock.StorageTemplateMigration, async () => {
+        if (!dto.isFolderAlbum) {
+          await this.albumRepository.disableFolderAlbum(id);
+          return;
+        }
+        const user = await this.userRepository.get(auth.user.id, {});
+        const characters = [...sanitize((album.albumName || 'Album').replaceAll(/\.+/g, ''))];
+        while (Buffer.byteLength(characters.join('')) > 180) {
+          characters.pop();
+        }
+        const name = characters.join('') || 'Album';
+        await this.albumRepository.setFolderAlbum({
+          id,
+          ownerId: auth.user.id,
+          enabled: true,
+          path: path.join(
+            StorageCore.getLibraryFolder({ id: auth.user.id, storageLabel: user?.storageLabel || null }),
+            'folder-albums',
+            `${name}--${id}`,
+          ),
+        });
+      });
+    }
     const updatedAlbum = await this.albumRepository.update(
       album.id,
       {
@@ -161,12 +194,21 @@ export class AlbumService extends BaseService {
       auth.user.id,
     );
 
+    if (dto.isFolderAlbum) {
+      const assets = await this.albumRepository.getFolderAssetIds(id);
+      await this.eventRepository.emit('AlbumAssetsChanged', {
+        albumId: id,
+        assetIds: assets.map(({ assetId }) => assetId),
+      });
+    }
     return mapAlbum({ ...updatedAlbum, assets: album.assets });
   }
 
   async delete(auth: AuthDto, id: string): Promise<void> {
     await this.requireAccess({ auth, permission: Permission.AlbumDelete, ids: [id] });
-    await this.albumRepository.delete(id);
+    await this.databaseRepository.withLock(DatabaseLock.StorageTemplateMigration, () =>
+      this.albumRepository.delete(id),
+    );
   }
 
   async addAssets(auth: AuthDto, id: string, dto: BulkIdsDto): Promise<BulkIdResponseDto[]> {
@@ -196,6 +238,11 @@ export class AlbumService extends BaseService {
       await this.eventRepository.emit('AlbumUpdate', { id, userIds, recipientIds });
     }
 
+    // Include duplicates: a normal client retry must repair a lost queue enqueue.
+    const accessible = results
+      .filter(({ success, error }) => success || error === BulkIdErrorReason.DUPLICATE)
+      .map(({ id }) => id);
+    await this.eventRepository.emit('AlbumAssetsChanged', { albumId: id, assetIds: accessible });
     return results;
   }
 
@@ -255,6 +302,9 @@ export class AlbumService extends BaseService {
       await this.eventRepository.emit('AlbumUpdate', event);
     }
 
+    for (const albumId of allowedAlbumIds) {
+      await this.eventRepository.emit('AlbumAssetsChanged', { albumId, assetIds: [...allowedAssetIds] });
+    }
     return results;
   }
 
@@ -281,6 +331,9 @@ export class AlbumService extends BaseService {
       });
     }
 
+    if (removedIds.length) {
+      await this.eventRepository.emit('AlbumAssetsChanged', { albumId: id, assetIds: removedIds });
+    }
     return results;
   }
 
