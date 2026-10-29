@@ -30,6 +30,7 @@ it('does not coalesce late association into an already active metadata placement
   );
   repository['handlers'][JobName.StorageTemplateMigrationSingle] = {
     queueName: QueueName.StorageTemplateMigration,
+    jobName: JobName.StorageTemplateMigrationSingle,
     label: 'folder-placement-test',
     handler: async () => JobStatus.Success,
   };
