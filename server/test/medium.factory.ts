@@ -92,7 +92,16 @@ import { getConfig, updateConfig } from 'src/utils/config.js';
 import { mockEnvData } from 'test/repositories/config.repository.mock.js';
 import { newTelemetryRepositoryMock } from 'test/repositories/telemetry.repository.mock.js';
 import { factory, newDate, newEmbedding, newUuid } from 'test/small.factory.js';
-import { automock, wait } from 'test/utils.js';
+import { automock, getTestDatabaseUrl, wait } from 'test/utils.js';
+
+const lockRepositories = new Set<DatabaseRepository>();
+// eslint-disable-next-line unicorn/no-top-level-side-effects -- Native test fixture owns teardown of each real lock pool it creates.
+afterEach(async () => {
+  for (const repository of lockRepositories) {
+    await repository.onModuleDestroy();
+  }
+  lockRepositories.clear();
+});
 
 export const testAssetsDir = resolve(import.meta.dirname, '../../e2e/test-assets');
 
@@ -432,6 +441,7 @@ export class ExifTestContext extends MediumTestContext<typeof MetadataService> {
       real: [
         AssetRepository,
         AssetJobRepository,
+        DatabaseRepository,
         MediaRepository,
         MetadataRepository,
         SystemMetadataRepository,
@@ -519,7 +529,15 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
     }
 
     case DatabaseRepository: {
-      return new key(db, LoggingRepository.create(), new ConfigRepository()) as InstanceType<T>;
+      const config = new ConfigRepository();
+      vi.spyOn(config, 'getEnv').mockReturnValue(
+        mockEnvData({
+          database: { config: { connectionType: 'url', url: getTestDatabaseUrl(db) }, skipMigrations: false },
+        }),
+      );
+      const repository = new key(db, LoggingRepository.create(), config);
+      lockRepositories.add(repository);
+      return repository as InstanceType<T>;
     }
 
     case EmailRepository: {

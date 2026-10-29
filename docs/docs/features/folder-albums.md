@@ -58,7 +58,8 @@ checks and operator installation are separate results.
 
 Placement uses the existing storage queue, database lock and `move_history`.
 Folder placement waits for the existing completed-metadata marker; an upload's
-initial EXIF size alone is insufficient. Metadata, preview, editor and video readers and movers coordinate
+initial EXIF size alone is insufficient. Metadata, sidecar checks/writes, preview,
+editor and video readers and movers coordinate
 on per-asset advisory locks, refreshing paths after acquisition. A bounded pool
 of four lock connections per process keeps ordinary database queries available;
 nested Android motion extraction reuses the same lock session. Shutdown closes

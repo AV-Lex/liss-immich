@@ -18,6 +18,7 @@ import { DatabaseRepository } from 'src/repositories/database.repository.js';
 import { EventRepository } from 'src/repositories/event.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
+import { MetadataRepository } from 'src/repositories/metadata.repository.js';
 import { MoveRepository } from 'src/repositories/move.repository.js';
 import { StorageRepository } from 'src/repositories/storage.repository.js';
 import { SystemMetadataRepository } from 'src/repositories/system-metadata.repository.js';
@@ -62,7 +63,14 @@ const setup = <
       StorageRepository,
       UserRepository,
     ],
-    mock: [ConfigRepository, EventRepository, JobRepository, LoggingRepository, SystemMetadataRepository],
+    mock: [
+      ConfigRepository,
+      EventRepository,
+      JobRepository,
+      LoggingRepository,
+      MetadataRepository,
+      SystemMetadataRepository,
+    ],
   });
   const repository = result.ctx.get(DatabaseRepository);
   lockRepositories.add(repository);
@@ -389,6 +397,103 @@ describe('folder album DB/jobs and real files', () => {
       await Promise.all([first, second]);
       expect(readerPath).toBe(order === 'reader-first' ? oldPath : newPath);
       expect(await readFile(newPath)).toEqual(bytes);
+    } finally {
+      release();
+    }
+  });
+
+  it.each(
+    ['reader-first', 'mover-first'].flatMap((order) => ['write', 'check'].map((operation) => ({ order, operation }))),
+  )('coordinates sidecar $operation with placement: $order', async ({ order, operation }) => {
+    const { sut: albums, ctx } = setup(AlbumService);
+    const { user } = await ctx.newUser();
+    const oldPath = join(directory, 'sidecar-race.jpg');
+    const oldSidecar = `${oldPath}.xmp`;
+    const sidecarBytes = Buffer.from('<xmp>synthetic rating</xmp>');
+    await writeFile(oldPath, bytes);
+    await writeFile(oldSidecar, sidecarBytes);
+    const { asset } = await ctx.newAsset({
+      ownerId: user.id,
+      originalPath: oldPath,
+      originalFileName: 'sidecar-race.jpg',
+      checksum,
+    });
+    const assets = ctx.get(AssetRepository);
+    await assets.upsertExif({
+      lockedPropertiesBehavior: 'override',
+      exif: {
+        assetId: asset.id,
+        fileSizeInByte: bytes.length,
+        rating: 3,
+        lockedProperties: ['rating'],
+      },
+    });
+    await assets.upsertFile({ assetId: asset.id, type: AssetFileType.Sidecar, path: oldSidecar });
+    await assets.upsertJobStatus({ assetId: asset.id, metadataExtractedAt: new Date() });
+    const { album } = await ctx.newAlbum({ ownerId: user.id }, [asset.id]);
+    const enabled = await albums.update(factory.auth({ user }), album.id, { isFolderAlbum: true });
+    const newPath = join(enabled.folderAlbum!.path, 'sidecar-race.jpg');
+    const newSidecar = `${newPath}.xmp`;
+    const metadata = setup(MetadataService);
+    const placement = setup(StorageTemplateService);
+    placement.sut.onConfigInit({ newConfig: defaults });
+    const { promise: entered, resolve: enter } = Promise.withResolvers<void>();
+    const { promise: blocked, resolve: release } = Promise.withResolvers<void>();
+    let observedSidecar: string | undefined;
+    const observe = async (path: string) => {
+      observedSidecar = path;
+      if (order !== 'reader-first') {
+        return;
+      }
+
+      enter();
+      await blocked;
+    };
+    metadata.ctx.getMock(MetadataRepository).writeTags.mockImplementation(async (path) => {
+      await observe(path);
+      await writeFile(path, sidecarBytes);
+    });
+    const storage = metadata.ctx.get(StorageRepository);
+    const exists = storage.checkFileExists.bind(storage);
+    vi.spyOn(storage, 'checkFileExists').mockImplementation(async (path, mode) => {
+      await observe(path);
+      return exists(path, mode);
+    });
+    const moverStorage = placement.ctx.get(StorageRepository);
+    const rename = moverStorage.rename.bind(moverStorage);
+    if (order === 'mover-first') {
+      vi.spyOn(moverStorage, 'rename').mockImplementation(async (source, destination) => {
+        enter();
+        await blocked;
+        return rename(source, destination);
+      });
+    }
+    const sidecarJob = () =>
+      operation === 'write'
+        ? metadata.sut.handleSidecarWrite({ id: asset.id })
+        : metadata.sut.handleSidecarCheck({ id: asset.id });
+    try {
+      const first = order === 'reader-first' ? sidecarJob() : placement.sut.handleMigrationSingle({ id: asset.id });
+      await entered;
+      const second = order === 'reader-first' ? placement.sut.handleMigrationSingle({ id: asset.id }) : sidecarJob();
+      // The competing connection must wait on the asset advisory lock before reading/moving paths.
+      await expect
+        .poll(async () => {
+          const waiting = await sql<{ count: number }>`SELECT count(*)::int AS count FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event = 'advisory'`.execute(database);
+          return waiting.rows[0].count;
+        })
+        .toBeGreaterThan(0);
+      release();
+      const results = await Promise.all([first, second]);
+      expect(results).toContain(JobStatus.Success);
+      expect(observedSidecar).toBe(order === 'reader-first' ? oldSidecar : newSidecar);
+      expect(await readFile(newSidecar)).toEqual(sidecarBytes);
+      expect(await readFile(newPath)).toEqual(bytes);
+      const saved = await ctx.get(AssetJobRepository).getForSidecarCheckJob(asset.id);
+      expect(saved?.originalPath).toBe(newPath);
+      expect(saved?.files.find((file) => file.type === AssetFileType.Sidecar)?.path).toBe(newSidecar);
+      await expect(stat(oldSidecar)).rejects.toMatchObject({ code: 'ENOENT' });
     } finally {
       release();
     }

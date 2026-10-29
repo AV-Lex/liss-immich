@@ -434,6 +434,10 @@ export class MetadataService extends BaseService {
 
   @OnJob({ name: JobName.SidecarCheck, queue: QueueName.Sidecar })
   async handleSidecarCheck({ id }: JobOf<JobName.SidecarCheck>): Promise<JobStatus | undefined> {
+    return this.databaseRepository.withAssetLock(id, () => this.checkSidecar(id));
+  }
+
+  private async checkSidecar(id: string): Promise<JobStatus | undefined> {
     const asset = await this.assetJobRepository.getForSidecarCheckJob(id);
     if (!asset) {
       return;
@@ -484,8 +488,11 @@ export class MetadataService extends BaseService {
   }
 
   @OnJob({ name: JobName.SidecarWrite, queue: QueueName.Sidecar })
-  async handleSidecarWrite(job: JobOf<JobName.SidecarWrite>): Promise<JobStatus> {
-    const { id } = job;
+  async handleSidecarWrite({ id }: JobOf<JobName.SidecarWrite>): Promise<JobStatus> {
+    return this.databaseRepository.withAssetLock(id, () => this.writeSidecar(id));
+  }
+
+  private async writeSidecar(id: string): Promise<JobStatus> {
     const asset = await this.assetJobRepository.getForSidecarWriteJob(id);
     if (!asset) {
       return JobStatus.Failed;

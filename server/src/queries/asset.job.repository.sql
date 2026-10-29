@@ -716,6 +716,24 @@ where
   )
   and "asset"."deletedAt" is null
 
+-- AssetJobRepository.hasMetadataExtracted
+select
+  "metadataExtractedAt"
+from
+  "asset_job_status"
+where
+  "assetId" = $1
+
+-- AssetJobRepository.getLivePhotoStills
+select
+  "id",
+  "ownerId"
+from
+  "asset"
+where
+  "livePhotoVideoId" = $1
+  and "deletedAt" is null
+
 -- AssetJobRepository.getForStorageTemplateJob
 select
   "asset"."id",
