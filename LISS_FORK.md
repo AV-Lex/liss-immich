@@ -123,6 +123,11 @@ albums and unchanged upload/Add/Remove clients retain their normal contracts.
   placement with a conflict log while allowing ordinary preview generation.
   Folder association jobs cannot be absorbed by an already active same-asset
   metadata job. Folder placement also works with stock templates disabled.
+  It waits for completed metadata, not merely an initial EXIF row. Metadata,
+  sidecar checks/writes, preview, video and editor handlers refresh paths under
+  the same per-asset advisory lock. The existing database repository owns a
+  bounded four-connection lock pool; nested motion extraction reuses its session.
+  Long readers can delay placement without occupying ordinary query connections.
 - A directory is allocated once beneath the owner's library root as
   `folder-albums/<sanitized-name>--<full-album-UUID>`. Names are bounded in UTF-8
   bytes; UUIDs distinguish equal/sanitized names. Existing collision suffixes are

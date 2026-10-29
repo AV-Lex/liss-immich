@@ -35,8 +35,9 @@ targeting `liss`; [draft PR #8](https://github.com/AV-Lex/liss-immich/pull/8)
 holds the candidate. Targeted author checks and native synthetic CI are in
 progress. Next: resolve concrete test findings, independent verification of the
 exact corrected candidate, then bounded Claude R1 and owner acceptance before
-integration. Synthetic baseline restart/download after native migration revert
-remains a required rollback check, distinct from installed operator verification.
+integration. The candidate includes an opt-in synthetic baseline restart/download
+check after native migration revert; its actual CI result is required before
+source acceptance, distinct from installed operator verification.
 Executable native regressions remain required. No unrelated backlog is assigned.
 
 The assignment remains in rotation; it is not PARKED. Runtime/library deployment

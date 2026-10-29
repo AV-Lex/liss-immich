@@ -410,6 +410,7 @@ describe('folder album DB/jobs and real files', () => {
     const oldPath = join(directory, 'sidecar-race.jpg');
     const oldSidecar = `${oldPath}.xmp`;
     const sidecarBytes = Buffer.from('<xmp>synthetic rating</xmp>');
+    const editedSidecarBytes = Buffer.from('<xmp>edited rating 3</xmp>');
     await writeFile(oldPath, bytes);
     await writeFile(oldSidecar, sidecarBytes);
     const { asset } = await ctx.newAsset({
@@ -451,7 +452,7 @@ describe('folder album DB/jobs and real files', () => {
     };
     metadata.ctx.getMock(MetadataRepository).writeTags.mockImplementation(async (path) => {
       await observe(path);
-      await writeFile(path, sidecarBytes);
+      await writeFile(path, editedSidecarBytes);
     });
     const storage = metadata.ctx.get(StorageRepository);
     const exists = storage.checkFileExists.bind(storage);
@@ -488,11 +489,14 @@ describe('folder album DB/jobs and real files', () => {
       const results = await Promise.all([first, second]);
       expect(results).toContain(JobStatus.Success);
       expect(observedSidecar).toBe(order === 'reader-first' ? oldSidecar : newSidecar);
-      expect(await readFile(newSidecar)).toEqual(sidecarBytes);
+      expect(await readFile(newSidecar)).toEqual(operation === 'write' ? editedSidecarBytes : sidecarBytes);
       expect(await readFile(newPath)).toEqual(bytes);
       const saved = await ctx.get(AssetJobRepository).getForSidecarCheckJob(asset.id);
       expect(saved?.originalPath).toBe(newPath);
       expect(saved?.files.find((file) => file.type === AssetFileType.Sidecar)?.path).toBe(newSidecar);
+      expect(await ctx.get(AssetJobRepository).getLockedPropertiesForMetadataExtraction(asset.id)).toEqual(
+        operation === 'write' ? [] : ['rating'],
+      );
       await expect(stat(oldSidecar)).rejects.toMatchObject({ code: 'ENOENT' });
     } finally {
       release();

@@ -45,10 +45,44 @@ pnpm --filter immich test --run src/services/storage-template.service.spec.ts sr
 pnpm --filter immich test:medium --run test/medium/specs/services/storage-template.service.spec.ts test/medium/specs/repositories/folder-placement-queue.spec.ts test/medium/specs/repositories/storage-locks.spec.ts
 ```
 
-Build the existing `server/Dockerfile` and web artifacts as in the native release
-workflow, recording the exact source commit/image. Before updating an installed
-instance, stop writes/jobs and retain a matching database and complete media
-snapshot. Server startup runs the additive `1793289600000-FolderAlbums` migration;
+Build the existing Dockerfile, including its web, CLI and plugin stages, with a
+lowercase local tag. Replace the placeholder with the accepted full source SHA:
+
+```sh
+export LISS_SOURCE_SHA=<accepted-source-sha>
+git checkout --detach "$LISS_SOURCE_SHA"
+docker build -f server/Dockerfile \
+  --build-arg BUILD_SOURCE_COMMIT="$LISS_SOURCE_SHA" \
+  --build-arg BUILD_SOURCE_REF="$LISS_SOURCE_SHA" \
+  --build-arg BUILD_IMAGE=liss \
+  --label "org.opencontainers.image.revision=$LISS_SOURCE_SHA" \
+  -t "liss-immich-server:$LISS_SOURCE_SHA" .
+docker image inspect "liss-immich-server:$LISS_SOURCE_SHA" > image-receipt.json
+```
+
+Record the image ID, revision label, source/build arguments and build log with
+the source SHA. The inherited GitHub release publisher currently attempts an
+uppercase fork registry path; its export result is separate from building and
+running this local image. No registry publishing is needed here.
+
+In the existing installation directory, retain its Compose file, environment,
+database and media mounts. Add a local `compose.liss.yml` override:
+
+```yaml
+services:
+  immich-server:
+    image: liss-immich-server:${LISS_SOURCE_SHA}
+    pull_policy: never
+```
+
+Before updating, stop writes/jobs and retain a matching database and complete
+media snapshot. Recreate the existing service using the override:
+
+```sh
+docker compose -f docker-compose.yml -f compose.liss.yml up -d --no-deps immich-server
+```
+
+Server startup runs the additive `1793289600000-FolderAlbums` migration;
 it opts no existing album or asset in and moves no files. Start with a small
 synthetic library, enable one album, and verify original downloads, disk hashes,
 mtimes, UUIDs and later uploads before applying it to a real library. Source
@@ -106,13 +140,40 @@ the completed readable layout in a source rollback:
    `asset.originalPath` values before allowing writes again. Folder controls and
    future first assignments are unavailable in the baseline.
 
+For an image installation, the equivalent native revert uses the same D1 image
+and existing Compose network while the service is stopped. Set `DB_URL` to the
+existing database's URL, with URL-encoded credentials, through the operator's
+normal secure environment. This command does not start the server or workers:
+
+```sh
+docker compose -f docker-compose.yml -f compose.liss.yml stop immich-server
+docker compose -f docker-compose.yml -f compose.liss.yml run --rm --no-deps \
+  --env DB_URL --entrypoint /bin/bash immich-server -lc \
+  'cd /usr/src/app/server && node node_modules/@immich/sql-tools/sql-tools.mjs -u "$DB_URL" migrations revert'
+```
+
+Keep the output and verify that only `1793289600000-FolderAlbums` was reverted.
+Then select the exact baseline image built from
+`8303cb117e197c700332b33b61b45314c9cc5bb4` in the same override and recreate the
+service with the same database and media mounts. Do not remove volumes.
+
 Restore the matching post-placement snapshot and D1 image together to recover
 the exact D1 binding state. A pre-upgrade database/media snapshot is an additional
 disaster-recovery option; it may restore the earlier layout and cannot preserve
 uploads made afterward. Never combine a database snapshot with files from a
-different point in time or treat schema down as a file undo. Runtime downgrade
-verification belongs to the assigned operator; the native medium tests exercise
-the migration ledger/guard and preserved paths/files, not an installed rollback.
+different point in time or treat schema down as a file undo.
+
+The opt-in `e2e/src/specs/server/api/d1-rollback.e2e-spec.ts` runs last in the
+existing synthetic x64 CI environment. It requires `IMMICH_D1_BASELINE_IMAGE`
+to identify a source-built baseline image with the exact revision label and
+build environment above. It stops the current server, retains its anonymous
+`/data` volume explicitly, archives matching post-placement DB/media snapshots,
+runs the current image's native revert and starts the baseline on those same
+resources. Receipts record startup source, HTTP download hash, asset/album IDs,
+readable path and disk mtime. Ordinary API/CLI runs skip this destructive
+synthetic-only test. Native CI execution and installed operator verification
+are separate results; the medium inventory test alone is insufficient proof
+of a baseline restart.
 
 Cross-folder Move, hierarchy, reverse sync, automatic folder renaming and a new
 mobile build are outside v0.
