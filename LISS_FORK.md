@@ -152,7 +152,9 @@ albums and unchanged upload/Add/Remove clients retain their normal contracts.
   ignored under the existing repository policy).
 
 [Folder album behavior, native checks and recovery/rollback](docs/docs/features/folder-albums.md)
-describe the supported path and limits. Schema down refuses outstanding move
+describe the native build/update/check contract and the generic Docker/Compose
+packaging/test route. The existing HOME installation is native/no-Docker/no-ML;
+its concrete service binding stays operator-owned. Schema down refuses outstanding move
 history and preserves original paths/files; an old binary must not start against
 an unknown applied migration. A matching post-placement DB/media snapshot must
 be retained before native last-migration revert. Installed rollback remains an
