@@ -51,6 +51,39 @@ describe.skipIf(!baselineImage)('D1 native baseline rollback with readable media
     async () => {
       await mkdir(evidence, { recursive: true });
       await utils.resetDatabase();
+      // resetDatabase removes bootstrap metadata while the worker keeps its
+      // in-memory media root. Restore native bootstrap state before any upload.
+      await docker('restart', 'immich-e2e-server');
+      await expect
+        .poll(
+          async () => {
+            try {
+              const response = await request(app).get('/server/ping').timeout(2000);
+              return response.status;
+            } catch {
+              return 0;
+            }
+          },
+          { timeout: 60_000, interval: 1000 },
+        )
+        .toBe(200);
+      const database = await utils.connectDatabase();
+      await expect
+        .poll(
+          async () => {
+            const result = await database.query<{ value: { location: string } }>(
+              'SELECT value FROM system_metadata WHERE key = $1',
+              ['MediaLocation'],
+            );
+            return result.rows[0]?.value;
+          },
+          { timeout: 30_000 },
+        )
+        .toEqual({ location: '/data' });
+      await writeFile(
+        resolve(evidence, 'current-bootstrap.json'),
+        JSON.stringify({ mediaLocation: '/data', nativeRestart: true }),
+      );
       const admin = await utils.adminSetup();
       const headers = asBearerAuth(admin.accessToken);
       const config = await getConfig({ headers });
@@ -63,7 +96,6 @@ describe.skipIf(!baselineImage)('D1 native baseline rollback with readable media
         },
         { headers },
       );
-      const database = await utils.connectDatabase();
       const asset = await utils.createAsset(admin.accessToken);
       await utils.waitForQueueFinish(admin.accessToken, 'metadataExtraction');
       const uploaded = await database.query<{ originalPath: string }>(
