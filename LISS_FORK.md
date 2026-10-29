@@ -44,6 +44,10 @@ and [architecture overview][architecture]; use the code for version-sensitive fa
    membership and emits album updates; its add/remove paths do not schedule a
    storage-template move. Do not assume membership is available when upload
    metadata processing first runs, or that adding membership will rerun placement.
+   The shared-link upload branch also adds album membership within the upload
+   request, after queueing extraction; D1 must handle membership already present
+   at extraction as well as membership arriving later. This is not a guarantee
+   of ordering between the asynchronous worker and the request.
 3. [StorageTemplateService][templates] queues a single migration on
    `AssetMetadataExtracted`; the single and full migration handlers require
    `storageTemplate.enabled`. [Asset job queries][asset-jobs] join EXIF data and
@@ -90,6 +94,11 @@ and [architecture overview][architecture]; use the code for version-sensitive fa
   throw if the old path is absent; D0 does not claim interruption recovery is
   universally successful. D1 must exercise this case with real synthetic files,
   alongside collisions, timestamps, bytes/hash and separate sidecar moves.
+- When move history remains and both recorded paths exist, recovery prefers
+  the old path and skips new-path verification before retrying rename/copy.
+  A crash after copying can reach this branch; D1 must test different bytes at
+  both paths and prevent silent destination overwrite. The logged unlink-failure
+  path above normally clears history, so it is a separate untracked-copy case.
 
 ### Reuse and D1 extension points
 
