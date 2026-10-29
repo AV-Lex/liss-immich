@@ -2,7 +2,7 @@ import { getConfig, getQueuesLegacy, updateConfig } from '@immich/sdk';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { app, asBearerAuth, utils } from 'src/utils.js';
@@ -199,6 +199,7 @@ describe.skipIf(!baselineImage)('D1 native baseline rollback with readable media
           '--entrypoint',
           'tar',
           currentImage,
+          '--format=pax',
           '-czf',
           '/tmp/d1-media.tar.gz',
           '-C',
@@ -213,8 +214,32 @@ describe.skipIf(!baselineImage)('D1 native baseline rollback with readable media
         const archive = await execute('tar', ['-tzf', resolve(evidence, 'post-placement-media.tar.gz')], {
           maxBuffer: 64 * 1024 * 1024,
         });
-        expect(archive.stdout).toContain(readablePath.replace(/^\/data\//, './'));
+        const archiveMember = readablePath.replace(/^\/data\//, './');
+        expect(archive.stdout).toContain(archiveMember);
         await writeFile(resolve(evidence, 'media-inventory.txt'), archive.stdout);
+        // Verify the snapshot itself, not just the still-mounted live original.
+        const restoredDirectory = resolve(evidence, 'restored');
+        await mkdir(restoredDirectory, { recursive: true });
+        await execute('tar', [
+          '-xzf',
+          resolve(evidence, 'post-placement-media.tar.gz'),
+          '-C',
+          restoredDirectory,
+          '--',
+          archiveMember,
+        ]);
+        const restoredPath = resolve(restoredDirectory, archiveMember);
+        const restoredBytes = await readFile(restoredPath);
+        const restoredStat = await stat(restoredPath);
+        const restored = {
+          path: readablePath,
+          size: restoredStat.size,
+          mtimeMs: restoredStat.mtimeMs,
+          sha1: utils.sha1(restoredBytes),
+        };
+        expect(restoredBytes).toEqual(beforeDownload.body);
+        expect(restored).toEqual(placed);
+        await writeFile(resolve(evidence, 'restored-original-receipt.json'), JSON.stringify(restored, null, 2));
         const snapshots = await Promise.all(
           ['post-placement.dump', 'post-placement-media.tar.gz'].map((filename) => snapshotReceipt(filename)),
         );
