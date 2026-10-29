@@ -2,7 +2,7 @@
 
 RECORDED_DATE = EVENT_DATE = 2026-10-29
 ASSIGNMENT_ID = liss-immich-development
-STATE = D0_ACCEPTED / HOLD_R0_CLAUDE_REVIEW
+STATE = R0_ACCEPTED / D1_READY
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
@@ -21,13 +21,18 @@ This is source acceptance, not installed/runtime verification.
 
 The control pilot is accepted. D0 was integrated at
 [`7654062188accac093ccfff6f980c157019103b4`](https://github.com/AV-Lex/liss-immich/commit/7654062188accac093ccfff6f980c157019103b4).
-Next dependency/owner: the assigned development owner performs and accepts
-R0 in [#4](https://github.com/AV-Lex/liss-immich/issues/4), resolves material
-findings and records the exact reviewed snapshot/verdict there. **D1 must not
-start until that R0 acceptance releases the existing HOLD.** Then continue
+The development owner accepts R0 in [#4](https://github.com/AV-Lex/liss-immich/issues/4):
+Claude reviewed the exact D0 map above against the pinned baseline and returned
+PASS for the five required source questions. Job:
+`claude-liss / c73df3ac-8eee-4f75-bd0c-41e169cf719c`.
+The task thread preserves the full verdict, coverage limits and owner disposition;
+the map adds the verified timing/recovery cases to carry into D1 tests.
+
+The R0 start HOLD is released. Next owner: assigned development owner continues
 ordinary [D1 — folder-album v0](https://github.com/AV-Lex/liss-immich/issues/2),
-starting with its implementation plan and fresh comments. R1 remains the
-pre-integration checkpoint. D1 has not started; no unrelated backlog is assigned.
+recording its implementation plan and rereading fresh comments. R1 and executable
+regressions remain required before integration. D1 implementation has not started;
+no unrelated backlog is assigned.
 
 The assignment remains in rotation; it is not PARKED. Runtime/library deployment
 and installed verification belong to the separately assigned operator after a
