@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
+import { DatabaseRepository } from 'src/repositories/database.repository.js';
 import { EventRepository } from 'src/repositories/event.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MetadataRepository } from 'src/repositories/metadata.repository.js';
@@ -37,6 +38,7 @@ const setup = (db?: Kysely<DB>) => {
       AssetRepository,
       AssetJobRepository,
       ConfigRepository,
+      DatabaseRepository,
       MetadataRepository,
       SystemMetadataRepository,
       TagRepository,

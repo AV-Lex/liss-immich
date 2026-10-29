@@ -321,6 +321,10 @@ describe(MediaService.name, () => {
         .build();
       mocks.assetJob.getForMigrationJob.mockResolvedValue(asset);
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         entityId: asset.id,
         id: 'move-id',
         newPath: '/new/path',

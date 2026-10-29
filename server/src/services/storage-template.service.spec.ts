@@ -1,6 +1,7 @@
 import { Stats } from 'node:fs';
 import { SystemConfig, defaults } from 'src/dtos/config.dto.js';
-import { AssetPathType, AssetType, JobStatus } from 'src/enum.js';
+import { AssetPathType, AssetType, JobName, JobStatus, QueueName } from 'src/enum.js';
+import { JobService } from 'src/services/job.service.js';
 import { StorageTemplateService } from 'src/services/storage-template.service.js';
 import { AlbumFactory } from 'test/factories/album.factory.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
@@ -26,6 +27,8 @@ describe(StorageTemplateService.name, () => {
     mocks.systemMetadata.get.mockResolvedValue({ storageTemplate: { enabled: true } });
 
     sut.onConfigInit({ newConfig: defaults });
+    mocks.assetJob.hasMetadataExtracted.mockResolvedValue(true);
+    mocks.assetJob.getLivePhotoStills.mockResolvedValue([]);
   });
 
   describe('onConfigValidate', () => {
@@ -97,6 +100,7 @@ describe(StorageTemplateService.name, () => {
   describe('handleMigrationSingle', () => {
     it('should skip when storage template is disabled', async () => {
       mocks.systemMetadata.get.mockResolvedValue({ storageTemplate: { enabled: false } });
+      mocks.assetJob.getForStorageTemplateJob.mockResolvedValue(undefined);
 
       await expect(sut.handleMigrationSingle({ id: testAsset.id })).resolves.toBe(JobStatus.Skipped);
 
@@ -134,6 +138,10 @@ describe(StorageTemplateService.name, () => {
       mocks.assetJob.getForStorageTemplateJob.mockResolvedValueOnce(getForStorageTemplate(motionAsset));
 
       mocks.move.create.mockResolvedValueOnce({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: stillAsset.id,
         pathType: AssetPathType.Original,
@@ -142,6 +150,10 @@ describe(StorageTemplateService.name, () => {
       });
 
       mocks.move.create.mockResolvedValueOnce({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '124',
         entityId: motionAsset.id,
         pathType: AssetPathType.Original,
@@ -187,6 +199,10 @@ describe(StorageTemplateService.name, () => {
       mocks.album.getByAssetId.mockResolvedValue([getForAlbum(album)]);
 
       mocks.move.create.mockResolvedValueOnce({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: stillAsset.id,
         pathType: AssetPathType.Original,
@@ -195,6 +211,10 @@ describe(StorageTemplateService.name, () => {
       });
 
       mocks.move.create.mockResolvedValueOnce({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '124',
         entityId: motionAsset.id,
         pathType: AssetPathType.Original,
@@ -390,6 +410,10 @@ describe(StorageTemplateService.name, () => {
 
       mocks.storage.checkFileExists.mockImplementation((path) => Promise.resolve(path === asset.originalPath));
       mocks.move.getByEntity.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -398,6 +422,10 @@ describe(StorageTemplateService.name, () => {
       });
       mocks.assetJob.getForStorageTemplateJob.mockResolvedValue(getForStorageTemplate(asset));
       mocks.move.update.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -439,6 +467,10 @@ describe(StorageTemplateService.name, () => {
       mocks.storage.stat.mockResolvedValue({ size: 5000 } as Stats);
       mocks.crypto.hashFile.mockResolvedValue(asset.checksum);
       mocks.move.getByEntity.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -447,6 +479,10 @@ describe(StorageTemplateService.name, () => {
       });
       mocks.assetJob.getForStorageTemplateJob.mockResolvedValue(getForStorageTemplate(asset));
       mocks.move.update.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -482,6 +518,10 @@ describe(StorageTemplateService.name, () => {
       mocks.crypto.hashFile.mockResolvedValue(Buffer.from('different-hash', 'utf8'));
       mocks.assetJob.getForStorageTemplateJob.mockResolvedValue(getForStorageTemplate(asset));
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -524,6 +564,10 @@ describe(StorageTemplateService.name, () => {
         mocks.storage.stat.mockResolvedValue({ size: failedPathSize } as Stats);
         mocks.crypto.hashFile.mockResolvedValue(failedPathChecksum);
         mocks.move.getByEntity.mockResolvedValue({
+          sourceSize: null,
+          sourceChecksum: null,
+          sourceMtime: null,
+          sourceAtime: null,
           id: '123',
           entityId: testAsset.id,
           pathType: AssetPathType.Original,
@@ -532,6 +576,10 @@ describe(StorageTemplateService.name, () => {
         });
         mocks.assetJob.getForStorageTemplateJob.mockResolvedValue(getForStorageTemplate(testAsset));
         mocks.move.update.mockResolvedValue({
+          sourceSize: null,
+          sourceChecksum: null,
+          sourceMtime: null,
+          sourceAtime: null,
           id: '123',
           entityId: testAsset.id,
           pathType: AssetPathType.Original,
@@ -576,6 +624,10 @@ describe(StorageTemplateService.name, () => {
       mocks.assetJob.streamForStorageTemplateJob.mockReturnValue(makeStream([getForStorageTemplate(asset)]));
       mocks.user.getList.mockResolvedValue([userStub.user1]);
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -644,6 +696,10 @@ describe(StorageTemplateService.name, () => {
       mocks.assetJob.streamForStorageTemplateJob.mockReturnValue(makeStream([getForStorageTemplate(asset)]));
       mocks.user.getList.mockResolvedValue([userStub.user1]);
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -670,6 +726,10 @@ describe(StorageTemplateService.name, () => {
       mocks.assetJob.streamForStorageTemplateJob.mockReturnValue(makeStream([getForStorageTemplate(asset)]));
       mocks.user.getList.mockResolvedValue([user]);
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -706,6 +766,10 @@ describe(StorageTemplateService.name, () => {
       mocks.storage.rename.mockRejectedValue({ code: 'EXDEV' });
       mocks.user.getList.mockResolvedValue([userStub.user1]);
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -752,6 +816,10 @@ describe(StorageTemplateService.name, () => {
       mocks.storage.rename.mockRejectedValue({ code: 'EXDEV' });
       mocks.user.getList.mockResolvedValue([user]);
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -792,6 +860,10 @@ describe(StorageTemplateService.name, () => {
       mocks.storage.rename.mockRejectedValue(new Error('Read only system'));
       mocks.storage.copyFile.mockRejectedValue(new Error('Read only system'));
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: 'move-123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -839,6 +911,10 @@ describe(StorageTemplateService.name, () => {
       mocks.album.getByAssetId.mockResolvedValue([getForAlbum(album)]);
 
       mocks.move.create.mockResolvedValueOnce({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: stillAsset.id,
         pathType: AssetPathType.Original,
@@ -847,6 +923,10 @@ describe(StorageTemplateService.name, () => {
       });
 
       mocks.move.create.mockResolvedValueOnce({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '124',
         entityId: motionAsset.id,
         pathType: AssetPathType.Original,
@@ -878,6 +958,10 @@ describe(StorageTemplateService.name, () => {
       mocks.album.getByAssetId.mockResolvedValue([getForAlbum(album)]);
 
       mocks.move.create.mockResolvedValueOnce({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: stillAsset.id,
         pathType: AssetPathType.Original,
@@ -886,6 +970,10 @@ describe(StorageTemplateService.name, () => {
       });
 
       mocks.move.create.mockResolvedValueOnce({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '124',
         entityId: motionAsset.id,
         pathType: AssetPathType.Original,
@@ -923,6 +1011,10 @@ describe(StorageTemplateService.name, () => {
       mocks.assetJob.streamForStorageTemplateJob.mockReturnValue(makeStream([getForStorageTemplate(asset)]));
       mocks.user.getList.mockResolvedValue([user]);
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -953,6 +1045,10 @@ describe(StorageTemplateService.name, () => {
       mocks.assetJob.streamForStorageTemplateJob.mockReturnValue(makeStream([getForStorageTemplate(asset)]));
       mocks.user.getList.mockResolvedValue([user]);
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -983,6 +1079,10 @@ describe(StorageTemplateService.name, () => {
       mocks.assetJob.streamForStorageTemplateJob.mockReturnValue(makeStream([getForStorageTemplate(asset)]));
       mocks.user.getList.mockResolvedValue([user]);
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -1013,6 +1113,10 @@ describe(StorageTemplateService.name, () => {
       mocks.assetJob.streamForStorageTemplateJob.mockReturnValue(makeStream([getForStorageTemplate(asset)]));
       mocks.user.getList.mockResolvedValue([user]);
       mocks.move.create.mockResolvedValue({
+        sourceSize: null,
+        sourceChecksum: null,
+        sourceMtime: null,
+        sourceAtime: null,
         id: '123',
         entityId: asset.id,
         pathType: AssetPathType.Original,
@@ -1028,5 +1132,183 @@ describe(StorageTemplateService.name, () => {
         expect.stringContaining(`/data/library/${user.id}/2022/2022-06-19/IMG_7065.jpg`),
       );
     });
+  });
+});
+
+describe('folder album first placement', () => {
+  let sut: StorageTemplateService;
+  let mocks: ServiceMocks;
+  const user = UserFactory.create();
+  const album = AlbumFactory.from().owner(user).build();
+  const folder = {
+    id: album.id,
+    ownerId: user.id,
+    path: `/data/library/${user.id}/folder-albums/Trip--${album.id}`,
+    enabled: true,
+  };
+  let asset: ReturnType<typeof getForStorageTemplate>;
+  let move: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    ({ sut, mocks } = newTestService(StorageTemplateService));
+    sut.onConfigInit({ newConfig: defaults });
+    mocks.assetJob.hasMetadataExtracted.mockResolvedValue(true);
+    mocks.assetJob.getLivePhotoStills.mockResolvedValue([]);
+    mocks.systemMetadata.get.mockResolvedValue({ storageTemplate: { enabled: false } });
+    asset = getForStorageTemplate(
+      AssetFactory.from({ originalFileName: 'photo.jpg', originalPath: '/data/upload/photo.jpg' })
+        .owner(user)
+        .exif()
+        .build(),
+    );
+    mocks.assetJob.getForStorageTemplateJob.mockImplementation((id) =>
+      Promise.resolve(id === asset.id ? asset : undefined),
+    );
+    mocks.album.getAssetFolder.mockResolvedValue({ binding: folder, conflict: false });
+    mocks.storage.checkFileExists.mockResolvedValue(false);
+    move = vi.spyOn(sut['storageCore'], 'moveFile').mockResolvedValue(true);
+  });
+
+  it('places first association despite disabled stock templates and reuses a disabled retained binding', async () => {
+    await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Success);
+    expect(mocks.album.bindAssetFolder).toHaveBeenCalledWith(asset.id, user.id, album.id);
+    expect(move).toHaveBeenCalledWith(expect.objectContaining({ newPath: `${folder.path}/photo.jpg`, safe: true }));
+    mocks.album.getAssetFolder.mockResolvedValue({ binding: { ...folder, enabled: false }, conflict: false });
+    asset.originalPath = `${folder.path}/photo.jpg`;
+    await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Success);
+    expect(move).toHaveBeenLastCalledWith(
+      expect.objectContaining({ oldPath: asset.originalPath, newPath: asset.originalPath }),
+    );
+  });
+
+  it('skips visibly without binding, stock fallback or move for multiple eligible folders', async () => {
+    mocks.systemMetadata.get.mockResolvedValue({ storageTemplate: { enabled: true } });
+    mocks.album.getAssetFolder.mockResolvedValue({ binding: undefined, conflict: true });
+    const result = await sut.handleMigrationSingle({ id: asset.id, source: 'upload' });
+    expect(result).toBe(JobStatus.Skipped);
+    const jobs = newTestService(JobService);
+    jobs.mocks.job.run.mockResolvedValue(result);
+    await jobs.sut.onJobRun(QueueName.StorageTemplateMigration, {
+      name: JobName.StorageTemplateMigrationSingle,
+      data: { id: asset.id, source: 'upload' },
+    });
+    expect(jobs.mocks.job.queue).toHaveBeenCalledWith({
+      name: JobName.AssetGenerateThumbnails,
+      data: { id: asset.id, source: 'upload' },
+    });
+    expect(mocks.album.bindAssetFolder).not.toHaveBeenCalled();
+    expect(move).not.toHaveBeenCalled();
+    expect(mocks.logger.error).toHaveBeenCalledWith(expect.stringContaining('multiple eligible folder albums'));
+  });
+
+  it('reserves an unrelated sidecar destination and retains the filename suffix on rerun', async () => {
+    mocks.storage.checkFileExists.mockImplementation((file) =>
+      Promise.resolve(file === `${folder.path}/photo.jpg.xmp`),
+    );
+    await sut.handleMigrationSingle({ id: asset.id });
+    expect(move).toHaveBeenLastCalledWith(expect.objectContaining({ newPath: `${folder.path}/photo+1.jpg` }));
+    asset.originalPath = `${folder.path}/photo+1.jpg`;
+    await sut.handleMigrationSingle({ id: asset.id });
+    expect(move).toHaveBeenLastCalledWith(expect.objectContaining({ newPath: `${folder.path}/photo+1.jpg` }));
+  });
+
+  it('retries the retained history destination instead of allocating another collision suffix', async () => {
+    mocks.move.getByEntity.mockResolvedValue({
+      id: 'move-id',
+      entityId: asset.id,
+      pathType: AssetPathType.Original,
+      oldPath: asset.originalPath,
+      newPath: `${folder.path}/photo+1.jpg`,
+      sourceSize: 10,
+      sourceChecksum: asset.checksum,
+      sourceMtime: new Date(),
+      sourceAtime: new Date(),
+    });
+    mocks.storage.checkFileExists.mockResolvedValue(true);
+    await sut.handleMigrationSingle({ id: asset.id });
+    expect(move).toHaveBeenCalledWith(expect.objectContaining({ newPath: `${folder.path}/photo+1.jpg` }));
+    expect(mocks.storage.checkFileExists).not.toHaveBeenCalled();
+  });
+
+  it('queues late association and duplicate retries only for an enabled folder album', async () => {
+    mocks.album.getFolderAlbum.mockResolvedValue(undefined);
+    await sut.onAlbumAssetsChanged({ albumId: album.id, assetIds: [asset.id] });
+    expect(mocks.job.queue).not.toHaveBeenCalled();
+    mocks.album.getFolderAlbum.mockResolvedValue(folder);
+    await sut.onAlbumAssetsChanged({ albumId: album.id, assetIds: [asset.id, asset.id] });
+    expect(mocks.job.queue).toHaveBeenCalledExactlyOnceWith({
+      name: JobName.StorageTemplateMigrationSingle,
+      data: { id: asset.id, folderAssociation: true },
+    });
+  });
+
+  it('finishes a retained stock destination before first placement instead of reporting an outside layout complete', async () => {
+    const legacyDestination = '/data/library/stock/old-intent.jpg';
+    mocks.move.getByEntity.mockResolvedValueOnce({
+      id: 'legacy-move',
+      entityId: asset.id,
+      pathType: AssetPathType.Original,
+      oldPath: asset.originalPath,
+      newPath: legacyDestination,
+      sourceSize: null,
+      sourceChecksum: null,
+      sourceMtime: null,
+      sourceAtime: null,
+    });
+    move.mockImplementation(({ newPath }: { newPath: string }) => {
+      asset.originalPath = newPath;
+      return Promise.resolve(true);
+    });
+    await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Success);
+    expect(move).toHaveBeenNthCalledWith(1, expect.objectContaining({ newPath: legacyDestination, safe: true }));
+    expect(move).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ oldPath: legacyDestination, newPath: `${folder.path}/photo.jpg`, safe: true }),
+    );
+    expect(asset.originalPath).toBe(`${folder.path}/photo.jpg`);
+    expect(mocks.album.bindAssetFolder).toHaveBeenCalledTimes(1);
+  });
+
+  it('defers first association until actual metadata completion, then retries through the existing event', async () => {
+    mocks.assetJob.hasMetadataExtracted.mockResolvedValue(false);
+    await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Skipped);
+    expect(mocks.album.bindAssetFolder).not.toHaveBeenCalled();
+    expect(move).not.toHaveBeenCalled();
+    mocks.assetJob.hasMetadataExtracted.mockResolvedValue(true);
+    await sut.onAssetMetadataExtracted({ assetId: asset.id, userId: user.id, source: 'upload' });
+    await expect(sut.handleMigrationSingle({ id: asset.id, source: 'upload' })).resolves.toBe(JobStatus.Success);
+    expect(move).toHaveBeenCalledWith(expect.objectContaining({ newPath: `${folder.path}/photo.jpg` }));
+  });
+
+  it('skips a companion binding conflict without moving either original or blocking ordinary previews', async () => {
+    const motion = getForStorageTemplate(AssetFactory.from({ type: AssetType.Video }).owner(user).exif().build());
+    asset.livePhotoVideoId = motion.id;
+    mocks.assetJob.getForStorageTemplateJob.mockImplementation((id) =>
+      Promise.resolve(id === motion.id ? motion : asset),
+    );
+    mocks.album.getAssetFolder.mockImplementation((id) =>
+      Promise.resolve({
+        binding: id === motion.id ? { ...folder, id: 'another-folder' } : folder,
+        conflict: false,
+      }),
+    );
+    await expect(sut.handleMigrationSingle({ id: asset.id, source: 'upload' })).resolves.toBe(JobStatus.Skipped);
+    expect(mocks.album.bindAssetFolder).not.toHaveBeenCalled();
+    expect(move).not.toHaveBeenCalled();
+    expect(mocks.logger.error).toHaveBeenCalledWith(expect.stringContaining('conflict for companion'));
+  });
+
+  it('reports incomplete folder moves as failures rather than success', async () => {
+    move.mockRejectedValue(new Error('retained destination mismatch'));
+    await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Failed);
+  });
+
+  it('keeps foreign-owned managed and external originals out of the folder', async () => {
+    mocks.album.getAssetFolder.mockResolvedValue({ binding: { ...folder, ownerId: 'another-owner' }, conflict: false });
+    await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Failed);
+    expect(move).not.toHaveBeenCalled();
+    asset.isExternal = true;
+    await expect(sut.handleMigrationSingle({ id: asset.id })).resolves.toBe(JobStatus.Skipped);
+    expect(mocks.album.bindAssetFolder).not.toHaveBeenCalled();
   });
 });

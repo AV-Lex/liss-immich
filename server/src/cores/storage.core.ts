@@ -29,6 +29,7 @@ export interface MoveRequest {
   pathType: PathType;
   oldPath: string | null;
   newPath: string;
+  safe?: boolean;
   assetInfo?: {
     sizeInBytes: number;
     checksum: Buffer;
@@ -196,66 +197,109 @@ export class StorageCore {
   }
 
   async moveFile(request: MoveRequest) {
-    const { entityId, ownerId, pathType, oldPath, newPath, assetInfo } = request;
-    if (!oldPath || oldPath === newPath) {
+    const { entityId, ownerId, pathType, oldPath, newPath, assetInfo, safe } = request;
+    if (!oldPath) {
       return;
     }
 
     this.ensureFolders(newPath);
 
     let move = await this.moveRepository.getByEntity(entityId, pathType);
+    if (!move && oldPath === newPath) {
+      return true;
+    }
+    const incomplete = (message: string): false => {
+      this.logger.warn(message);
+      if (safe) {
+        throw new Error(message);
+      }
+      return false;
+    };
     if (move) {
       this.logger.log(`Attempting to finish incomplete move: ${move.oldPath} => ${move.newPath}`);
       const isOldPathExists = await this.storageRepository.checkFileExists(move.oldPath);
       const isNewPathExists = await this.storageRepository.checkFileExists(move.newPath);
       const newPathCheck = isNewPathExists ? move.newPath : null;
-      const actualPath = isOldPathExists ? move.oldPath : newPathCheck;
+      let actualPath = isOldPathExists ? move.oldPath : newPathCheck;
       if (!actualPath) {
-        this.logger.warn('Unable to complete move. File does not exist at either location.');
-        return;
+        return incomplete('Unable to complete move. File does not exist at either location.');
       }
 
-      const isFileAtNewLocation = actualPath === move.newPath;
-      this.logger.log(`Found file at ${isFileAtNewLocation ? 'new' : 'old'} location`);
-
-      if (
-        isFileAtNewLocation &&
-        !(await this.verifyNewPathContentsMatchesExpected(move.oldPath, move.newPath, assetInfo))
-      ) {
-        this.logger.fatal(
-          `Skipping move as file verification failed, old file is missing and new file is different to what was expected`,
-        );
-        return;
+      const proof =
+        move.sourceChecksum && move.sourceSize !== null && move.sourceSize !== undefined
+          ? { checksum: move.sourceChecksum, sizeInBytes: Number(move.sourceSize) }
+          : assetInfo;
+      if (safe && isNewPathExists && (!move.sourceMtime || !move.sourceAtime)) {
+        return incomplete('Incomplete move is missing source timestamp proof; retaining files and history');
+      }
+      if (isNewPathExists) {
+        // A retry may find both paths after copy. Never rename over unverified bytes.
+        if (!proof || !(await this.verifyNewPathContentsMatchesExpected(move.oldPath, move.newPath, proof, true))) {
+          return incomplete('Incomplete move destination could not be verified; retaining files and history');
+        }
+        if (isOldPathExists && move.oldPath !== move.newPath) {
+          const oldChecksum = await this.cryptoRepository.hashFile(move.oldPath);
+          if (!oldChecksum.equals(proof.checksum)) {
+            return incomplete('Incomplete move source differs from expected contents; retaining both files');
+          }
+        }
+        // Validate both paths before changing either timestamps or contents.
+        if (move.sourceMtime && move.sourceAtime) {
+          await this.storageRepository.utimes(move.newPath, new Date(move.sourceAtime), new Date(move.sourceMtime));
+        }
+        if (isOldPathExists && move.oldPath !== move.newPath) {
+          await this.storageRepository.unlink(move.oldPath);
+        }
+        actualPath = move.newPath;
       }
 
       move = await this.moveRepository.update(move.id, { id: move.id, oldPath: actualPath, newPath });
     } else {
-      move = await this.moveRepository.create({ entityId, pathType, oldPath, newPath });
+      const proof = safe ? await this.storageRepository.stat(oldPath) : undefined;
+      const sourceChecksum = safe
+        ? (assetInfo?.checksum ?? (await this.cryptoRepository.hashFile(oldPath)))
+        : undefined;
+      move = await this.moveRepository.create({
+        entityId,
+        pathType,
+        oldPath,
+        newPath,
+        ...(proof && { sourceSize: proof.size, sourceChecksum, sourceAtime: proof.atime, sourceMtime: proof.mtime }),
+      });
     }
 
     if (pathType === AssetPathType.Original && !assetInfo) {
-      this.logger.warn(`Unable to complete move. Missing asset info for ${entityId}`);
-      return;
+      return incomplete(`Unable to complete move. Missing asset info for ${entityId}`);
     }
 
     if (move.oldPath !== newPath) {
+      if (safe && (await this.storageRepository.checkFileExists(newPath))) {
+        return incomplete('Folder move destination already exists; retaining source, destination and history');
+      }
       try {
         this.logger.debug(`Attempting to rename file: ${move.oldPath} => ${newPath}`);
         await this.storageRepository.rename(move.oldPath, newPath);
       } catch (error: any) {
         if (error.code !== 'EXDEV') {
-          this.logger.warn(
-            `Unable to complete move. Error renaming file with code ${error.code} and message: ${error.message}`,
-          );
-          return;
+          return incomplete(`Unable to complete move. Error renaming file: ${error.message}`);
         }
         this.logger.debug(`Unable to rename file. Falling back to copy, verify and delete`);
         await this.storageRepository.copyFile(move.oldPath, newPath);
 
-        if (!(await this.verifyNewPathContentsMatchesExpected(move.oldPath, newPath, assetInfo))) {
+        if (
+          !(await this.verifyNewPathContentsMatchesExpected(
+            move.oldPath,
+            newPath,
+            assetInfo ??
+              (move.sourceChecksum && move.sourceSize !== null && move.sourceSize !== undefined
+                ? { checksum: move.sourceChecksum, sizeInBytes: Number(move.sourceSize) }
+                : undefined),
+            !!safe,
+          ))
+        ) {
           this.logger.warn(`Skipping move due to file size mismatch`);
           await this.storageRepository.unlink(newPath);
-          return;
+          return incomplete('Copied file verification failed; retaining move history');
         }
 
         const { atime, mtime } = await this.storageRepository.stat(move.oldPath);
@@ -264,23 +308,25 @@ export class StorageCore {
         try {
           await this.storageRepository.unlink(move.oldPath);
         } catch (error: any) {
-          this.logger.warn(`Unable to delete old file, it will now no longer be tracked by Immich: ${error.message}`);
+          return incomplete(`Unable to delete old file; retaining move history: ${error.message}`);
         }
       }
     }
 
     await this.savePath(pathType, entityId, newPath, ownerId);
     await this.moveRepository.delete(move.id);
+    return true;
   }
 
   private async verifyNewPathContentsMatchesExpected(
     oldPath: string,
     newPath: string,
     assetInfo?: { sizeInBytes: number; checksum: Buffer },
+    forceHash = false,
   ) {
-    const oldStat = await this.storageRepository.stat(oldPath);
+    const oldStat = !assetInfo || !forceHash ? await this.storageRepository.stat(oldPath) : undefined;
     const newStat = await this.storageRepository.stat(newPath);
-    const oldPathSize = assetInfo ? assetInfo.sizeInBytes : oldStat.size;
+    const oldPathSize = assetInfo ? assetInfo.sizeInBytes : oldStat!.size;
     const newPathSize = newStat.size;
     this.logger.debug(`File size check: ${newPathSize} === ${oldPathSize}`);
     if (newPathSize !== oldPathSize) {
@@ -293,7 +339,7 @@ export class StorageCore {
       logger: this.logger,
     };
     const config = await getConfig(repos, { withCache: true });
-    if (assetInfo && config.storageTemplate.hashVerificationEnabled) {
+    if (assetInfo && (forceHash || config.storageTemplate.hashVerificationEnabled)) {
       const { checksum } = assetInfo;
       const newChecksum = await this.cryptoRepository.hashFile(newPath);
       if (!newChecksum.equals(checksum)) {

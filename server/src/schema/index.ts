@@ -53,6 +53,7 @@ import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { ClusterGroupRequestTable } from 'src/schema/tables/cluster-group-request.table.js';
 import { ClusterGroupTable } from 'src/schema/tables/cluster-group.table.js';
 import { FaceSearchTable } from 'src/schema/tables/face-search.table.js';
+import { FolderAlbumTable } from 'src/schema/tables/folder-album.table.js';
 import { GeodataPlacesTable } from 'src/schema/tables/geodata-places.table.js';
 import { IntegrityReportTable } from 'src/schema/tables/integrity-report.table.js';
 import { LibraryTable } from 'src/schema/tables/library.table.js';
@@ -103,6 +104,7 @@ import { WorkflowTable } from 'src/schema/tables/workflow.table.js';
 export class ImmichDatabase {
   tables = [
     ActivityTable,
+    FolderAlbumTable,
     AlbumAssetTable,
     AlbumAssetAuditTable,
     AlbumAuditTable,
@@ -211,6 +213,7 @@ export interface DB {
   kysely_migrations: { timestamp: string; name: string };
 
   activity: ActivityTable;
+  folder_album: FolderAlbumTable;
 
   album: AlbumTable;
   album_audit: AlbumAuditTable;

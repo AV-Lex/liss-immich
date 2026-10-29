@@ -1,9 +1,10 @@
-import { schemaDiff, schemaFromCode, schemaFromDatabase } from '@immich/sql-tools';
+import { createPostgres, schemaDiff, schemaFromCode, schemaFromDatabase } from '@immich/sql-tools';
 import { Injectable } from '@nestjs/common';
 import AsyncLock from 'async-lock';
 import { Kysely, sql } from 'kysely';
 import { FileMigrationProvider, Migrator } from 'kysely/migration';
 import { InjectKysely } from 'nestjs-kysely';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { diff } from 'semver';
@@ -59,6 +60,11 @@ export const probes: Record<VectorIndex, number> = {
 @Injectable()
 export class DatabaseRepository {
   private readonly asyncLock = new AsyncLock();
+  private storageLockPool?: ReturnType<typeof createPostgres>;
+  private readonly storageLockSession = new AsyncLocalStorage<{
+    connection: Awaited<ReturnType<ReturnType<typeof createPostgres>['reserve']>>;
+    held: Set<string>;
+  }>();
 
   constructor(
     @InjectKysely() private db: Kysely<DB>,
@@ -69,7 +75,12 @@ export class DatabaseRepository {
   }
 
   async shutdown() {
+    await this.onModuleDestroy();
     await this.db.destroy();
+  }
+
+  async onModuleDestroy() {
+    await this.storageLockPool?.end();
   }
 
   getVectorExtension(): Promise<VectorExtension> {
@@ -455,7 +466,58 @@ export class DatabaseRepository {
     });
   }
 
+  // File readers/movers must not reserve the main query pool while callbacks
+  // issue repository queries. Nested Android motion extraction reuses its session.
+  withAssetLock<R>(assetId: string, callback: () => Promise<R>): Promise<R> {
+    return this.withStorageLock(`asset:${assetId}`, callback, assetId);
+  }
+
+  private async withStorageLock<R>(key: string, callback: () => Promise<R>, assetId?: string): Promise<R> {
+    const current = this.storageLockSession.getStore();
+    const run = async (session: NonNullable<typeof current>) => {
+      if (session.held.has(key)) {
+        return callback();
+      }
+      return this.asyncLock.acquire(key, async () => {
+        if (assetId) {
+          await session.connection`SELECT pg_advisory_lock(hashtextextended(${assetId}, ${DatabaseLock.StorageTemplateMigration}::bigint))`;
+        } else {
+          await session.connection`SELECT pg_advisory_lock(${DatabaseLock.StorageTemplateMigration})`;
+        }
+        session.held.add(key);
+        try {
+          return await callback();
+        } finally {
+          session.held.delete(key);
+          if (assetId) {
+            await session.connection`SELECT pg_advisory_unlock(hashtextextended(${assetId}, ${DatabaseLock.StorageTemplateMigration}::bigint))`;
+          } else {
+            await session.connection`SELECT pg_advisory_unlock(${DatabaseLock.StorageTemplateMigration})`;
+          }
+        }
+      });
+    };
+    if (current) {
+      return run(current);
+    }
+    this.storageLockPool ??= createPostgres({
+      connection: this.configRepository.getEnv().database.config,
+      maxConnections: 4,
+    });
+    const connection = await this.storageLockPool.reserve();
+    try {
+      const session = { connection, held: new Set<string>() };
+      return await this.storageLockSession.run(session, () => run(session));
+    } finally {
+      connection.release();
+    }
+  }
+
   async withLock<R>(lock: DatabaseLock, callback: () => Promise<R>): Promise<R> {
+    if (lock === DatabaseLock.StorageTemplateMigration) {
+      return this.withStorageLock(DatabaseLock[lock], callback);
+    }
+
     let res;
     await this.asyncLock.acquire(DatabaseLock[lock], async () => {
       await this.db.connection().execute(async (connection) => {

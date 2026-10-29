@@ -263,7 +263,9 @@ export class JobRepository {
         };
       }
       case JobName.StorageTemplateMigrationSingle: {
-        return { jobId: item.data.id };
+        // A late association must survive a metadata job with the same asset ID
+        // already running. The existing storage lock/binding makes replay safe.
+        return item.data.folderAssociation ? null : { jobId: item.data.id };
       }
       case JobName.PersonGenerateThumbnail: {
         return { priority: 1 };

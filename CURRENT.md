@@ -2,7 +2,7 @@
 
 RECORDED_DATE = EVENT_DATE = 2026-10-29
 ASSIGNMENT_ID = liss-immich-development
-STATE = D1_IMPLEMENTING
+STATE = D1_IMPLEMENTING / NATIVE_VERIFICATION
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
@@ -31,8 +31,13 @@ the map adds the verified timing/recovery cases to carry into D1 tests.
 The R0 start HOLD is released. The development owner accepted and recorded the
 [D1 implementation plan](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6500148683).
 The assigned author is implementing folder-album v0 on `feat/folder-album-v0-2`,
-targeting `liss`. Next: author checks on the exact candidate, independent
-verification, then bounded Claude R1 and owner acceptance before integration.
+targeting `liss`; [draft PR #8](https://github.com/AV-Lex/liss-immich/pull/8)
+holds the candidate. Targeted author checks and native synthetic CI are in
+progress. Next: resolve concrete test findings, independent verification of the
+exact corrected candidate, then bounded Claude R1 and owner acceptance before
+integration. The candidate includes an opt-in synthetic baseline restart/download
+check after native migration revert; its actual CI result is required before
+source acceptance, distinct from installed operator verification.
 Executable native regressions remain required. No unrelated backlog is assigned.
 
 The assignment remains in rotation; it is not PARKED. Runtime/library deployment

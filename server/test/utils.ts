@@ -314,6 +314,7 @@ export const getMocks = () => {
   const databaseMock = automock(DatabaseRepository, { args: [, loggerMock], strict: false });
 
   databaseMock.withLock.mockImplementation((_type, fn) => fn());
+  databaseMock.withAssetLock.mockImplementation((_id, fn) => fn());
   databaseMock.getPostgresVersion = vitest.fn().mockResolvedValue('14.10 (Debian 14.10-1.pgdg120+1)');
   databaseMock.getPostgresVersionRange = vitest.fn().mockReturnValue('>=14.0.0');
   databaseMock.createExtension = vitest.fn().mockResolvedValue(void 0);
@@ -486,6 +487,15 @@ const pngFactory = newPngFactory();
 const templateName = 'mich';
 
 const withDatabase = (url: string, name: string) => url.replace(`/${templateName}`, () => `/${name}`);
+const databaseUrls = new WeakMap<Kysely<DB>, string>();
+
+export const getTestDatabaseUrl = (database: Kysely<DB>) => {
+  const url = databaseUrls.get(database);
+  if (!url) {
+    throw new Error('Missing cloned test database connection receipt');
+  }
+  return url;
+};
 
 export const getKyselyDB = async (suffix?: string): Promise<Kysely<DB>> => {
   const testUrl = process.env.IMMICH_TEST_POSTGRES_URL!;
@@ -496,7 +506,10 @@ export const getKyselyDB = async (suffix?: string): Promise<Kysely<DB>> => {
   const dbName = `immich_${suffix ?? randomSuffix}`;
   await sql.unsafe(`CREATE DATABASE ${dbName} WITH TEMPLATE ${templateName} OWNER postgres;`);
 
-  return new Kysely<DB>(getKyselyConfig({ connectionType: 'url', url: withDatabase(testUrl, dbName) }));
+  const url = withDatabase(testUrl, dbName);
+  const database = new Kysely<DB>(getKyselyConfig({ connectionType: 'url', url }));
+  databaseUrls.set(database, url);
+  return database;
 };
 
 export const newRandomImage = () => {

@@ -14,6 +14,20 @@ select
   "album".*,
   (
     select
+      to_json(obj)
+    from
+      (
+        select
+          "folder_album"."enabled",
+          "folder_album"."path"
+        from
+          "folder_album"
+        where
+          "folder_album"."id" = "album"."id"
+      ) as obj
+  ) as "folderAlbum",
+  (
+    select
       coalesce(json_agg(agg), '[]')
     from
       (
@@ -91,6 +105,20 @@ where
 -- AlbumRepository.getByAssetId
 select
   "album".*,
+  (
+    select
+      to_json(obj)
+    from
+      (
+        select
+          "folder_album"."enabled",
+          "folder_album"."path"
+        from
+          "folder_album"
+        where
+          "folder_album"."id" = "album"."id"
+      ) as obj
+  ) as "folderAlbum",
   (
     select
       coalesce(json_agg(agg), '[]')
@@ -188,6 +216,20 @@ group by
 -- AlbumRepository.getAll
 select
   "album".*,
+  (
+    select
+      to_json(obj)
+    from
+      (
+        select
+          "folder_album"."enabled",
+          "folder_album"."path"
+        from
+          "folder_album"
+        where
+          "folder_album"."id" = "album"."id"
+      ) as obj
+  ) as "folderAlbum",
   (
     select
       coalesce(json_agg(agg), '[]')
@@ -361,6 +403,20 @@ with
   )
 select
   "album".*,
+  (
+    select
+      to_json(obj)
+    from
+      (
+        select
+          "folder_album"."enabled",
+          "folder_album"."path"
+        from
+          "folder_album"
+        where
+          "folder_album"."id" = "album"."id"
+      ) as obj
+  ) as "folderAlbum",
   (
     select
       coalesce(json_agg(agg), '[]')

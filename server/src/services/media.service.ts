@@ -153,6 +153,10 @@ export class MediaService extends BaseService {
 
   @OnJob({ name: JobName.AssetEditThumbnailGeneration, queue: QueueName.Editor })
   async handleAssetEditThumbnailGeneration({ id }: JobOf<JobName.AssetEditThumbnailGeneration>): Promise<JobStatus> {
+    return this.databaseRepository.withAssetLock(id, () => this.generateEditedThumbnailsForAsset(id));
+  }
+
+  private async generateEditedThumbnailsForAsset(id: string): Promise<JobStatus> {
     const asset = await this.assetJobRepository.getForGenerateThumbnailJob(id);
     const config = await this.getConfig({ withCache: true });
 
@@ -190,6 +194,10 @@ export class MediaService extends BaseService {
 
   @OnJob({ name: JobName.AssetGenerateThumbnails, queue: QueueName.ThumbnailGeneration })
   async handleGenerateThumbnails({ id }: JobOf<JobName.AssetGenerateThumbnails>): Promise<JobStatus> {
+    return this.databaseRepository.withAssetLock(id, () => this.generateThumbnailsForAsset(id));
+  }
+
+  private async generateThumbnailsForAsset(id: string): Promise<JobStatus> {
     const asset = await this.assetJobRepository.getForGenerateThumbnailJob(id);
     const config = await this.getConfig({ withCache: true });
 
@@ -552,6 +560,10 @@ export class MediaService extends BaseService {
 
   @OnJob({ name: JobName.AssetEncodeVideo, queue: QueueName.VideoConversion })
   async handleVideoConversion({ id }: JobOf<JobName.AssetEncodeVideo>): Promise<JobStatus> {
+    return this.databaseRepository.withAssetLock(id, () => this.convertVideoForAsset(id));
+  }
+
+  private async convertVideoForAsset(id: string): Promise<JobStatus> {
     const asset = await this.assetJobRepository.getForVideoConversion(id);
     if (!asset) {
       return JobStatus.Failed;

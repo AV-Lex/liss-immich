@@ -19802,6 +19802,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "folderAlbum": {
+            "$ref": "#/components/schemas/FolderAlbumResponseDto"
+          },
           "hasSharedLink": {
             "description": "Has shared link",
             "type": "boolean"
@@ -22573,6 +22576,21 @@
         },
         "required": [
           "id"
+        ],
+        "type": "object"
+      },
+      "FolderAlbumResponseDto": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "path"
         ],
         "type": "object"
       },
@@ -32621,6 +32639,10 @@
           },
           "isActivityEnabled": {
             "description": "Enable activity feed",
+            "type": "boolean"
+          },
+          "isFolderAlbum": {
+            "description": "Owner opt-in to first physical placement; existing bindings never move on unmark",
             "type": "boolean"
           },
           "order": {

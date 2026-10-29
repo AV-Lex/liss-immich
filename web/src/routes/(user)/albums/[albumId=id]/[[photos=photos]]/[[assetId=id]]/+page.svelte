@@ -47,13 +47,21 @@
   import { handleError } from '$lib/utils/handle-error';
   import { isAlbumsRoute, navigate, type AssetGridRouteSearchParams } from '$lib/utils/navigation';
   import { AlbumUserRole, AssetVisibility, updateAlbumInfo, type AlbumResponseDto } from '@immich/sdk';
-  import { ActionButton, CommandPaletteDefaultProvider, Icon, IconButton, toastManager } from '@immich/ui';
+  import {
+    ActionButton,
+    CommandPaletteDefaultProvider,
+    Icon,
+    IconButton,
+    toastManager,
+    modalManager,
+  } from '@immich/ui';
   import {
     mdiAccountEye,
     mdiAccountEyeOutline,
     mdiArrowLeft,
     mdiDotsHorizontal,
     mdiDotsVertical,
+    mdiFolderOutline,
     mdiImageOutline,
     mdiImagePlusOutline,
     mdiLink,
@@ -81,6 +89,24 @@
   let showAlbumUsers = $derived(timelineManager?.showAssetOwners ?? false);
 
   const timelineMultiSelectManager = new AssetMultiSelectManager();
+
+  const toggleFolderAlbum = async () => {
+    const enabled = !album.folderAlbum?.enabled;
+    if (
+      enabled &&
+      !(await modalManager.showDialog({
+        prompt: $t('folder_album_enable_prompt'),
+        confirmText: $t('folder_album_enable'),
+      }))
+    ) {
+      return;
+    }
+    try {
+      data.album = await updateAlbumInfo({ id: album.id, updateAlbumDto: { isFolderAlbum: enabled } });
+    } catch (error) {
+      handleError(error, $t('errors.unable_to_update_album_info'));
+    }
+  };
 
   const handleFavorite = async () => {
     try {
@@ -409,6 +435,14 @@
                   <ActionButton action={Actions.Share} />
                 </div>
               {/if}
+              {#if album.folderAlbum}
+                <p class="mt-2 text-sm">
+                  {$t(album.folderAlbum.enabled ? 'folder_album_enabled' : 'folder_album_retained')}
+                  <a class="underline" href={Route.folders({ path: album.folderAlbum.path })}
+                    >{album.folderAlbum.path}</a
+                  >
+                </p>
+              {/if}
               <AlbumDescription
                 id={album.id}
                 {isEditor}
@@ -546,6 +580,13 @@
                     icon={showAlbumUsers ? mdiAccountEye : mdiAccountEyeOutline}
                     text={showAlbumUsers ? $t('hide_asset_owners') : $t('view_asset_owners')}
                     onClick={() => timelineManager.toggleShowAssetOwners()}
+                  />
+                {/if}
+                {#if isOwned}
+                  <MenuOption
+                    icon={mdiFolderOutline}
+                    text={$t(album.folderAlbum?.enabled ? 'folder_album_disable' : 'folder_album_enable')}
+                    onClick={toggleFolderAlbum}
                   />
                 {/if}
                 <ActionMenuItem action={Actions.Options} />

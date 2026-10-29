@@ -805,4 +805,119 @@ describe('/albums', () => {
       expect(body).toEqual(errorDto.badRequest('User is owner'));
     });
   });
+  describe('folder albums with unchanged client requests', () => {
+    it('places upload then Add, preserves download/IDs, and never rebinds on logical album edits', async () => {
+      const headers = asBearerAuth(user1.accessToken);
+      const first = await utils.createAsset(user1.accessToken, { fileModifiedAt: '2020-06-07T08:09:10.000Z' });
+      await utils.waitForQueueFinish(admin.accessToken, 'metadataExtraction');
+      const client = await utils.connectDatabase();
+      const row = async (id: string) => {
+        const result = await client.query('SELECT id, "originalPath", "folderAlbumId" FROM asset WHERE id = $1', [id]);
+        return result.rows[0];
+      };
+      const original = await request(app).get(`/assets/${first.id}/original`).set(headers);
+      expect(original.status).toBe(200);
+      const before = await row(first.id);
+      const logical = await utils.createAlbum(user1.accessToken, { albumName: 'D1-logical' });
+      await request(app)
+        .put(`/albums/${logical.id}/assets`)
+        .set(headers)
+        .send({ ids: [first.id] })
+        .expect(200);
+      await utils.waitForQueueFinish(admin.accessToken, 'storageTemplateMigration');
+      const logicalRow = await row(first.id);
+      expect(logicalRow.originalPath).toBe(before.originalPath);
+      const folder = await utils.createAlbum(user1.accessToken, { albumName: 'D1-API' });
+      const enabled = await request(app)
+        .patch(`/albums/${folder.id}`)
+        .set(headers)
+        .send({ isFolderAlbum: true })
+        .expect(200);
+      expect(enabled.body.id).toBe(folder.id);
+      await request(app)
+        .put(`/albums/${folder.id}/assets`)
+        .set(headers)
+        .send({ ids: [first.id] })
+        .expect(200);
+      await expect
+        .poll(
+          async () => {
+            const current = await row(first.id);
+            return current.folderAlbumId;
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(folder.id);
+      await expect
+        .poll(
+          async () => {
+            const current = await row(first.id);
+            return current.originalPath;
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(`${enabled.body.folderAlbum.path}/example.png`);
+      const placed = await row(first.id);
+      const download = await request(app).get(`/assets/${first.id}/original`).set(headers);
+      expect(download.status).toBe(200);
+      expect(utils.sha1(download.body)).toBe(utils.sha1(original.body));
+      const duplicate = await request(app)
+        .put(`/albums/${folder.id}/assets`)
+        .set(headers)
+        .send({ ids: [first.id] })
+        .expect(200);
+      expect(duplicate.body).toEqual([{ id: first.id, success: false, error: 'duplicate' }]);
+      await request(app)
+        .delete(`/albums/${folder.id}/assets`)
+        .set(headers)
+        .send({ ids: [first.id] })
+        .expect(200);
+      const next = await utils.createAlbum(user1.accessToken, { albumName: 'D1-API' });
+      const nextEnabled = await request(app)
+        .patch(`/albums/${next.id}`)
+        .set(headers)
+        .send({ isFolderAlbum: true })
+        .expect(200);
+      expect(nextEnabled.body.folderAlbum.path).not.toBe(enabled.body.folderAlbum.path);
+      await request(app)
+        .put(`/albums/${next.id}/assets`)
+        .set(headers)
+        .send({ ids: [first.id] })
+        .expect(200);
+      await request(app)
+        .patch(`/albums/${folder.id}`)
+        .set(headers)
+        .send({ albumName: 'Renamed', isFolderAlbum: false })
+        .expect(200);
+      await request(app).delete(`/albums/${folder.id}`).set(headers).expect(204);
+      await utils.waitForQueueFinish(admin.accessToken, 'storageTemplateMigration');
+      expect(await row(first.id)).toEqual(placed);
+      const later = await utils.createAsset(user1.accessToken);
+      await request(app)
+        .put(`/albums/${next.id}/assets`)
+        .set(headers)
+        .send({ ids: [later.id] })
+        .expect(200);
+      await expect
+        .poll(
+          async () => {
+            const current = await row(later.id);
+            return current.folderAlbumId;
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(next.id);
+      await expect
+        .poll(
+          async () => {
+            const current = await row(later.id);
+            return current.originalPath;
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(`${nextEnabled.body.folderAlbum.path}/example.png`);
+      const unchangedAlbum = await getAlbumInfo({ id: next.id }, { headers });
+      expect(unchangedAlbum.id).toBe(next.id);
+    });
+  });
 });

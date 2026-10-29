@@ -47,6 +47,7 @@ import { MapRepository } from 'src/repositories/map.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { MetadataRepository } from 'src/repositories/metadata.repository.js';
+import { MoveRepository } from 'src/repositories/move.repository.js';
 import { NotificationRepository } from 'src/repositories/notification.repository.js';
 import { OcrRepository } from 'src/repositories/ocr.repository.js';
 import { PartnerRepository } from 'src/repositories/partner.repository.js';
@@ -91,7 +92,16 @@ import { getConfig, updateConfig } from 'src/utils/config.js';
 import { mockEnvData } from 'test/repositories/config.repository.mock.js';
 import { newTelemetryRepositoryMock } from 'test/repositories/telemetry.repository.mock.js';
 import { factory, newDate, newEmbedding, newUuid } from 'test/small.factory.js';
-import { automock, wait } from 'test/utils.js';
+import { automock, getTestDatabaseUrl, wait } from 'test/utils.js';
+
+const lockRepositories = new Set<DatabaseRepository>();
+// eslint-disable-next-line unicorn/no-top-level-side-effects -- Native test fixture owns teardown of each real lock pool it creates.
+afterEach(async () => {
+  for (const repository of lockRepositories) {
+    await repository.onModuleDestroy();
+  }
+  lockRepositories.clear();
+});
 
 export const testAssetsDir = resolve(import.meta.dirname, '../../e2e/test-assets');
 
@@ -431,6 +441,7 @@ export class ExifTestContext extends MediumTestContext<typeof MetadataService> {
       real: [
         AssetRepository,
         AssetJobRepository,
+        DatabaseRepository,
         MediaRepository,
         MetadataRepository,
         SystemMetadataRepository,
@@ -491,6 +502,7 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
     case DuplicateRepository:
     case IntegrityRepository:
     case MemoryRepository:
+    case MoveRepository:
     case LibraryRepository:
     case NotificationRepository:
     case OcrRepository:
@@ -517,7 +529,15 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
     }
 
     case DatabaseRepository: {
-      return new key(db, LoggingRepository.create(), new ConfigRepository()) as InstanceType<T>;
+      const config = new ConfigRepository();
+      vi.spyOn(config, 'getEnv').mockReturnValue(
+        mockEnvData({
+          database: { config: { connectionType: 'url', url: getTestDatabaseUrl(db) }, skipMigrations: false },
+        }),
+      );
+      const repository = new key(db, LoggingRepository.create(), config);
+      lockRepositories.add(repository);
+      return repository as InstanceType<T>;
     }
 
     case EmailRepository: {
@@ -625,8 +645,9 @@ const newMockRepository = <T>(key: ClassConstructor<T>) => {
       return automock(MachineLearningRepository, { args: [{ setContext: () => {} }] });
     }
 
+    case MetadataRepository:
     case StorageRepository: {
-      return automock(StorageRepository, { args: [{ setContext: () => {} }] });
+      return automock(key, { args: [{ setContext: () => {} }] });
     }
 
     case WebsocketRepository: {

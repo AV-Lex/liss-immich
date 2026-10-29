@@ -368,7 +368,7 @@ export type JobItem =
 
   // Storage Template
   | { name: JobName.StorageTemplateMigration; data?: IBaseJob }
-  | { name: JobName.StorageTemplateMigrationSingle; data: IEntityJob }
+  | { name: JobName.StorageTemplateMigrationSingle; data: IEntityJob & { folderAssociation?: boolean } }
 
   // Migration
   | { name: JobName.FileMigrationQueueAll; data?: IBaseJob }
