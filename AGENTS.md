@@ -68,9 +68,10 @@ The repository is public, so no special source access or credential handoff is
 needed. Give immutable commit/PR URLs and exact paths; do not ask the reviewer
 to infer the candidate from the moving `liss` branch.
 
-Use the existing FoxBridge Profile-ID v1 runner:
+Use the existing FoxBridge on service1 Profile-ID v1 runner and the public
+[client lifecycle contract](https://github.com/AV-Lex/foxbridge/blob/main/docs/AGENT-CLIENT.md#один-async-lifecycle):
 
-1. Call `fb_agent_list` and choose an available Liss Claude alias. Use
+1. Call `fb_agent_list` and choose an available personal Liss Claude alias. Use
    `claude-liss` for bounded source/evidence review. Use
    `claude-liss-research` only when the question genuinely needs external
    public documentation or source research beyond the supplied repository
@@ -80,10 +81,12 @@ Use the existing FoxBridge Profile-ID v1 runner:
    results, known unknowns, and only the relevant diff/files. Public exact
    links are preferred; attach files only when they materially improve the
    review.
-3. Start one immutable request with a saved UUID `request_id` through
-   `fb_agent_start`. If delivery or execution is uncertain, reconcile the
-   same agent/job with `fb_agent_job` and `fb_agent_result`; never start a
-   duplicate job. Public resume is unsupported.
+3. Before dispatch, save a lowercase UUID v4 `request_id` and the exact start
+   arguments, including an explicit suitable timeout within the runner/bridge
+   limits. Start that one immutable request through `fb_agent_start`. If
+   delivery or outcome is uncertain, reconcile the same alias/job with
+   `fb_agent_job` and `fb_agent_result`; never create a duplicate start.
+   Public resume is unsupported.
 4. Give Claude one narrow role and explicit questions. Ask for
    `PASS`, `FAIL` or `NOT_PROVEN`; each finding must include the exact
    counterexample, path/evidence, affected invariant and the smallest useful
@@ -94,6 +97,10 @@ Use the existing FoxBridge Profile-ID v1 runner:
    unless a concrete finding cannot be explained otherwise. The review is
    finished when the stated risks have evidence; it is not an invitation to
    design a larger system.
+
+An exact public URL removes the need for source credentials; it does not prove
+that Claude read the required snapshot or evidence. If required material is
+unavailable, the corresponding verdict is `NOT_PROVEN`, not `PASS`.
 
 The development owner triages the result. Automatable material findings become
 ordinary repository tests in the existing suites. Real defects are fixed;
