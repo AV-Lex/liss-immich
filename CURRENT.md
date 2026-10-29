@@ -1,27 +1,35 @@
 # Liss Immich — CURRENT
 
-RECORDED_DATE = EVENT_DATE = 2026-10-28
+RECORDED_DATE = EVENT_DATE = 2026-10-29
 ASSIGNMENT_ID = liss-immich-development
-STATE = READY_D0 / OPERATOR_ACTIVATION_PENDING
+STATE = D0_ACCEPTED / WAIT_PILOT_ACCEPTANCE
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
 ## Current work
 
-[D0 — document the existing upstream architecture](https://github.com/AV-Lex/liss-immich/issues/1)
-is the first task. Create and verify the compact source map in
-LISS_FORK.md before implementation. No application behaviour change
-belongs to D0. Bootstrap files are not an architecture acceptance.
+[D0 — existing upstream architecture](https://github.com/AV-Lex/liss-immich/issues/1)
+is accepted by the assigned development owner. The compact map is in
+[LISS_FORK.md](LISS_FORK.md), verified against the pinned upstream baseline.
+Exact accepted map source:
+[5c1f87118bd7b7bb1cebbc8c01cc257bbd5a7603](https://github.com/AV-Lex/liss-immich/commit/5c1f87118bd7b7bb1cebbc8c01cc257bbd5a7603).
+The task thread records integration, published-file read-back and reproducible
+checks. Only documentation changed; no build, migration or deployment was needed.
+This is source acceptance, not installed/runtime verification.
 
 ## Next
 
+The control pilot ends after D0 publication and verification. **Do not start D1
+in this pilot run.** Next dependency/owner: maintainer pilot acceptance, then the
+assigned development owner takes
 [D1 — folder-album v0](https://github.com/AV-Lex/liss-immich/issues/2)
-follows accepted D0. The owner continues the normal development cycle;
-there is no repeated approval for each ordinary step. Significant product
-boundary questions return in the corresponding issue.
+in a later ordinary pickup, starting with its implementation plan and fresh
+comments. D1 has not started. No unrelated backlog is assigned.
 
-The actual execution holder and task progress are recorded in the task
-thread. Source and installed/runtime state must remain distinct.
+The assignment remains in rotation; it is not PARKED. Runtime/library deployment
+and installed verification belong to the separately assigned operator after a
+future source handoff. The actual execution holder and task history stay in the
+exact task thread.
 
 ## Finish condition
 
