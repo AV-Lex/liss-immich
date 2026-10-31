@@ -11,6 +11,10 @@ explicitly selected folder albums.
 - **main** remains an unmodified upstream copy.
 - Assignment and workflow: [AGENTS.md](AGENTS.md).
 - Current work: [CURRENT.md](CURRENT.md).
+- Installation owner: [access-controlled operator entry](https://github.com/AV-Lex/infraliss-home/blob/main/services/immich/README.md)
+  maintains the current installed build identity and verification. Source/release
+  facts and dated source evidence stay here; source acceptance alone does not
+  establish deployment.
 - Tasks and results: [issues](https://github.com/AV-Lex/liss-immich/issues).
 
 ## Existing upstream architecture
