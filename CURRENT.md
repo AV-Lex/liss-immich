@@ -1,6 +1,6 @@
 # Liss Immich — CURRENT
 
-RECORDED_DATE = EVENT_DATE = 2026-10-30
+RECORDED_DATE = EVENT_DATE = 2026-11-02
 ASSIGNMENT_ID = liss-immich-development
 STATE = D1_SOURCE_ACCEPTED / WAIT_OPERATOR_INSTALL
 INTEGRATION_BRANCH = liss
@@ -33,6 +33,16 @@ analysis limits remain explicit in the acceptance record. Source acceptance
 does not establish installed operation.
 
 ## Next dependency and owner
+
+The [2026-11-02 operator checkpoint](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6571393572)
+records a built/staged exact native candidate with offline target checks and a
+quiesced matched recovery set verified by separate restore. These are
+operator-reported prerequisites; production remains the upstream baseline and
+installed D1 behavior is still pending. Next InfraLiss performs disposable D1
+migration/placement/replay and baseline-revert checks, then captures a fresh
+matched recovery set for production cutover and returns installed verification.
+Writers have resumed, so the earlier recovery point cannot cover later uploads
+or be mixed with newer media. Private operator details remain in its canon.
 
 Next owner: the separately assigned runtime/library operator installs the
 accepted source into the existing native/no-Docker/no-ML installation using
