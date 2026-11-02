@@ -2,7 +2,7 @@
 
 RECORDED_DATE = EVENT_DATE = 2026-11-02
 ASSIGNMENT_ID = liss-immich-development
-STATE = D1_SOURCE_ACCEPTED / WAIT_OPERATOR_INSTALL
+STATE = D1_INSTALLED_NATIVE / WAIT_INTERACTIVE_VERIFICATION
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
@@ -50,32 +50,49 @@ probe and guarded completion evidence are retained. This does not relax timestam
 integrity checks for matching snapshots. No implementation fix is indicated by
 this observation alone.
 
-Production remains the upstream baseline; installed D1 behavior, served web controls
-and phone behavior are not established by the disposable fixture. Next InfraLiss
-stages production cutover, captures a fresh quiesced matched recovery set, performs
-the native update and returns installed verification. Writers have resumed since
-the earlier recovery point, which cannot cover later uploads or be mixed with
-newer media. Completed disposable checks must not be recreated without a new need.
-Private operator details remain in its canon.
+The [native installed return](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6580958056)
+now reports the accepted implementation running in the existing installation.
+The development owner read the complete operator report and structured receipt,
+checked agreement with that return and the accepted startup marker-writing source,
+and [accepted the native installation checkpoint](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6581054112)
+on operator-reported evidence.
+This is not independent interactive behavior acceptance.
 
-Next owner: the separately assigned runtime/library operator installs the
-accepted source into the existing native/no-Docker/no-ML installation using
-[the deployment-neutral native build/update/check/rollback contract](docs/docs/features/folder-albums.md#native-build-and-runtime-contract).
-The [D1 handoff correction](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6507850040)
-supersedes the earlier Compose installation assumption. Docker/Compose remains
-only a generic packaging/test route, not the HOME installation plan; do not
-create a parallel runtime. Infra owns concrete paths, units, users, configuration
-and commands in its private canon. Keep the exact source/native-artifact receipt
-and matching database plus complete media snapshot. First verify a small synthetic library: opt-in first placement,
-upload then later association and later uploads, stable IDs, readable paths,
-original bytes/hash/mtime, repeated processing and the documented recovery path.
-Return sanitized installed source/artifact and verification results to
-[the exact D1 task thread](https://github.com/AV-Lex/liss-immich/issues/2).
-Real-library deployment remains outside the development owner's authority.
+Installed source remains `6c58b0370eb3fd86cf8ead45fd9e9f521f60de93`.
+Native archive SHA256:
+`58128ab521a5ccfa0ad1689d014045e486a109eaac5480ca606299aa2de2e3ab`;
+manifest SHA256:
+`ffe239df1c61cd4ee3bf77c162318a7dac03c8a3697d41c7e4acdbd655ceb0eb`.
+Operator verified all 34,736 artifact entries, explicit native migration 101→102
+(only `1793289600000-FolderAlbums`), zero enabled folder policies/assignments/moves,
+current API/worker, trusted HTTPS, native dependencies, disabled ML and served
+HTML/startup assets. Existing 113 asset identities/paths/checksums and 339
+non-marker files were preserved. Six expected startup mount markers were rewritten;
+the fresh matching recovery set preserves all 345 files including original markers.
+Separate database restoration compared all 72 tables plus owners/extensions.
+Old release, matching recovery and failed-attempt evidence remain operator-retained.
+Operator PATH/config-mode fixes required no repeated migration or application patch.
+
+Production folder opt-in, interactive folder controls and phone behavior were not
+exercised by the cutover. Production rollback and off-host/VM-loss recovery remain
+unproven. Reuse the completed disposable qualification; do not repeat migration or
+fixtures to fill this dependency. The measured replay precision limit above remains.
+
+Next owner: maintainer for interactive use, with the separately assigned operator
+checking installed paths/data and handling runtime actions. On a small synthetic
+album verify **Use as folder album**, its confirmation/status/directory link and
+Folder View/file location, then ordinary phone upload followed by normal album
+association and a later upload. Confirm visible results, stable IDs, readable paths,
+bytes/hash/mtime with operator assistance; return sanitized PASS or the exact failed
+step to [D1](https://github.com/AV-Lex/liss-immich/issues/2). This does not authorize
+bulk real-library conversion. Concrete service binding and raw evidence stay in
+the operator canon; the public
+[native build/update/check/rollback contract](docs/docs/features/folder-albums.md#native-build-and-runtime-contract)
+remains the source route.
 
 The development owner stays in rotation to review installed results, resolve
 concrete findings and deliver any agreed fixes through installation and verification.
-While this dependency is pending, do not select unrelated backlog or repeat an
+While interactive verification is pending, do not select unrelated backlog or repeat an
 unchanged empty/blocker report. The assignment is not PARKED.
 
 ## Finish condition
