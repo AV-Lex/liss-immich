@@ -240,6 +240,14 @@ to guess, overwrite or discard files. Preserve the database, both recorded paths
 and logs when reporting it. Sidecars and motion files are separate moves, so
 partial completion is possible and must be retried.
 
+Timestamp restoration uses Node Date/utimes; source rollback checks compare
+`fs.stat.mtimeMs`. In the [disposable native qualification](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6575973972),
+interrupted replay changed a filesystem mtime by +89 ns while that millisecond
+value stayed unchanged; a plain-file probe reproduced the difference. Normal
+rename placement retained the recorded nanosecond values. Nanosecond-exact replay
+and arbitrary sub-millisecond preservation are not established. Matching recovery
+snapshots must still preserve and verify the actual filesystem timestamps.
+
 ## Fallback and rollback
 
 Stopping new assignments in the same new binary is the immediate fallback.

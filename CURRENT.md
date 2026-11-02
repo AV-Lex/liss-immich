@@ -34,15 +34,29 @@ does not establish installed operation.
 
 ## Next dependency and owner
 
-The [2026-11-02 operator checkpoint](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6571393572)
-records a built/staged exact native candidate with offline target checks and a
-quiesced matched recovery set verified by separate restore. These are
-operator-reported prerequisites; production remains the upstream baseline and
-installed D1 behavior is still pending. Next InfraLiss performs disposable D1
-migration/placement/replay and baseline-revert checks, then captures a fresh
-matched recovery set for production cutover and returns installed verification.
-Writers have resumed, so the earlier recovery point cannot cover later uploads
-or be mixed with newer media. Private operator details remain in its canon.
+The [2026-11-02 disposable native qualification checkpoint](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6575973972)
+records operator-reported PASS for additive migration/default-off, existing-member
+and later-upload placement, duplicate/conflict behavior, unresolved-history down
+guard, interrupted new-only replay, matched post-placement preservation and exact
+baseline revert/startup/downloads. The development owner read the complete report
+and structured receipt; this is not independent installed-behavior acceptance.
+Accepted implementation and staged native candidate are unchanged.
+
+Interrupted replay showed a +89 ns difference reproduced by a plain-file Node
+Date/utimes probe, while the tested Node `mtimeMs` value remained unchanged.
+Nanosecond-exact replay and arbitrary sub-millisecond preservation are not proven;
+normal rename placement retained the recorded nanosecond values. The strict stop,
+probe and guarded completion evidence are retained. This does not relax timestamp
+integrity checks for matching snapshots. No implementation fix is indicated by
+this observation alone.
+
+Production remains the upstream baseline; installed D1 behavior, served web controls
+and phone behavior are not established by the disposable fixture. Next InfraLiss
+stages production cutover, captures a fresh quiesced matched recovery set, performs
+the native update and returns installed verification. Writers have resumed since
+the earlier recovery point, which cannot cover later uploads or be mixed with
+newer media. Completed disposable checks must not be recreated without a new need.
+Private operator details remain in its canon.
 
 Next owner: the separately assigned runtime/library operator installs the
 accepted source into the existing native/no-Docker/no-ML installation using
