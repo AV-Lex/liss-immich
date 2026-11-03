@@ -19,9 +19,12 @@ select
       (
         select
           "folder_album"."enabled",
-          "folder_album"."path"
+          "folder_album"."path",
+          "folder_album"."ownerId",
+          "user"."storageLabel"
         from
           "folder_album"
+          inner join "user" on "user"."id" = "folder_album"."ownerId"
         where
           "folder_album"."id" = "album"."id"
       ) as obj
@@ -112,9 +115,12 @@ select
       (
         select
           "folder_album"."enabled",
-          "folder_album"."path"
+          "folder_album"."path",
+          "folder_album"."ownerId",
+          "user"."storageLabel"
         from
           "folder_album"
+          inner join "user" on "user"."id" = "folder_album"."ownerId"
         where
           "folder_album"."id" = "album"."id"
       ) as obj
@@ -223,9 +229,12 @@ select
       (
         select
           "folder_album"."enabled",
-          "folder_album"."path"
+          "folder_album"."path",
+          "folder_album"."ownerId",
+          "user"."storageLabel"
         from
           "folder_album"
+          inner join "user" on "user"."id" = "folder_album"."ownerId"
         where
           "folder_album"."id" = "album"."id"
       ) as obj
@@ -410,9 +419,12 @@ select
       (
         select
           "folder_album"."enabled",
-          "folder_album"."path"
+          "folder_album"."path",
+          "folder_album"."ownerId",
+          "user"."storageLabel"
         from
           "folder_album"
+          inner join "user" on "user"."id" = "folder_album"."ownerId"
         where
           "folder_album"."id" = "album"."id"
       ) as obj

@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { BulkIdErrorReason } from 'src/dtos/asset-ids.response.dto.js';
-import { AlbumUserRole, AssetOrder, UserMetadataKey } from 'src/enum.js';
+import { AlbumUserRole, AssetOrder, JobName, UserMetadataKey } from 'src/enum.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { AlbumUserFactory } from 'test/factories/album-user.factory.js';
 import { AlbumFactory } from 'test/factories/album.factory.js';
@@ -1444,6 +1444,7 @@ describe('folder album controls and association retry', () => {
     mocks.album.update.mockImplementation(() => Promise.resolve(getForAlbum(album)));
     mocks.user.get.mockResolvedValue(user);
     mocks.album.getFolderAssetIds.mockResolvedValue([{ assetId: album.assets[0].id }]);
+    mocks.album.getFolderTransitionAssetIds.mockResolvedValue([{ assetId: album.assets[0].id }]);
   });
 
   it('explicitly enables an existing small album, and an enable retry repairs a lost enqueue', async () => {
@@ -1456,7 +1457,7 @@ describe('folder album controls and association retry', () => {
       expect.objectContaining({
         id: album.id,
         ownerId: user.id,
-        path: expect.stringContaining(`/folder-albums/TripOne--${album.id}`),
+        path: expect.stringContaining('/folder-albums/TripOne'),
         enabled: true,
       }),
     );
@@ -1474,8 +1475,81 @@ describe('folder album controls and association retry', () => {
     album.albumName = '...///';
     await sut.update(AuthFactory.create(user), album.id, { isFolderAlbum: true });
     expect(mocks.album.setFolderAlbum).toHaveBeenLastCalledWith(
-      expect.objectContaining({ path: expect.stringContaining(`/Album--${album.id}`) }),
+      expect.objectContaining({ path: expect.stringContaining('/Album') }),
     );
+  });
+
+  it('allocates readable suffixes for reserved bindings, pending moves and filesystem entries', async () => {
+    mocks.album.isFolderPathReserved.mockImplementation((value) => Promise.resolve(value.endsWith('/TripOne')));
+    mocks.move.isFolderPathReserved.mockImplementation((value) => Promise.resolve(value.endsWith('/TripOne (2)')));
+    mocks.storage.pathExists.mockImplementation((value) => Promise.resolve(value.endsWith('/TripOne (3)')));
+    await sut.update(AuthFactory.create(user), album.id, { isFolderAlbum: true });
+    expect(mocks.album.setFolderAlbum).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: `/data/library/${user.id}/folder-albums/TripOne (4)`,
+      }),
+    );
+  });
+
+  it('keeps a retained path when re-enabled after display-name changes', async () => {
+    const path = `/data/library/${user.id}/folder-albums/Original--${album.id}`;
+    mocks.album.getFolderAlbum.mockResolvedValue({ id: album.id, ownerId: user.id, path, enabled: false });
+    album.albumName = 'Other name';
+    await sut.update(AuthFactory.create(user), album.id, { isFolderAlbum: true });
+    expect(mocks.album.setFolderAlbum).toHaveBeenCalledWith(expect.objectContaining({ path, enabled: true }));
+    expect(mocks.storage.pathExists).not.toHaveBeenCalled();
+  });
+
+  it('reserves legacy-shaped readable titles and never reallocates them on explicit replay', async () => {
+    album.albumName = `Photo--${album.id}`;
+    const folder = {
+      id: album.id,
+      ownerId: user.id,
+      path: `/data/library/${user.id}/folder-albums/Old--${album.id}`,
+      enabled: false,
+    };
+    mocks.album.getFolderAlbum.mockImplementation(() => Promise.resolve({ ...folder }));
+    mocks.album.updateFolderAlbumPath.mockImplementation((_id, target) => {
+      folder.path = target;
+      return Promise.resolve();
+    });
+    mocks.job.queue.mockRejectedValueOnce(new Error('queue unavailable'));
+    await expect(sut.update(AuthFactory.create(user), album.id, { migrateFolderName: true })).rejects.toThrow(
+      'queue unavailable',
+    );
+    expect(folder.path).toBe(`/data/library/${user.id}/folder-albums/Photo--${album.id} (2)`);
+    album.albumName = 'Later display name';
+    await sut.update(AuthFactory.create(user), album.id, { migrateFolderName: true });
+    expect(mocks.album.updateFolderAlbumPath).toHaveBeenCalledTimes(1);
+    expect(mocks.album.setFolderAlbum).not.toHaveBeenCalled();
+    expect(mocks.album.disableFolderAlbum).not.toHaveBeenCalled();
+    expect(mocks.job.queue).toHaveBeenLastCalledWith({
+      name: JobName.StorageTemplateMigrationSingle,
+      data: { id: album.assets[0].id, folderAssociation: true },
+    });
+  });
+
+  it('rejects migration without a binding, combined enablement and editor requests', async () => {
+    const auth = AuthFactory.create(user);
+    await expect(sut.update(auth, album.id, { migrateFolderName: true })).rejects.toThrow('no existing folder');
+    for (const enabled of [true, false]) {
+      await expect(sut.update(auth, album.id, { isFolderAlbum: enabled, migrateFolderName: true })).rejects.toThrow(
+        'separate requests',
+      );
+    }
+    const editor = UserFactory.create();
+    album.albumUsers.push({ ...album.albumUsers[0], user: editor, role: AlbumUserRole.Editor, userId: editor.id });
+    await expect(sut.update(AuthFactory.create(editor), album.id, { migrateFolderName: true })).rejects.toThrow(
+      'Only the album owner',
+    );
+    expect(mocks.album.updateFolderAlbumPath).not.toHaveBeenCalled();
+    expect(mocks.job.queue).not.toHaveBeenCalled();
+  });
+
+  it('does not reserve a directory when the filesystem cannot be checked', async () => {
+    mocks.storage.pathExists.mockRejectedValue(new Error('EACCES'));
+    await expect(sut.update(AuthFactory.create(user), album.id, { isFolderAlbum: true })).rejects.toThrow('EACCES');
+    expect(mocks.album.setFolderAlbum).not.toHaveBeenCalled();
   });
 
   it('does not alter placement for a normal rename or unmark, and editors cannot opt in', async () => {

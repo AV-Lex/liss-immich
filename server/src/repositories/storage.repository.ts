@@ -163,6 +163,18 @@ export class StorageRepository {
     }
   }
 
+  async pathExists(filepath: string): Promise<boolean> {
+    try {
+      await fs.lstat(filepath);
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   async unlink(file: string) {
     try {
       await fs.unlink(file);

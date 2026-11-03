@@ -859,6 +859,8 @@ export type ContributorCountResponseDto = {
 export type FolderAlbumResponseDto = {
     enabled: boolean;
     path: string;
+    /** Display path relative to the owner library root; not a filesystem input */
+    relativePath?: string;
 };
 export type AlbumResponseDto = {
     /** Album name */
@@ -938,6 +940,8 @@ export type UpdateAlbumDto = {
     isActivityEnabled?: boolean;
     /** Owner opt-in to first physical placement; existing bindings never move on unmark */
     isFolderAlbum?: boolean;
+    /** Owner-only explicit transition of this existing UUID directory to a readable name; repeat to replay */
+    migrateFolderName?: true;
     order?: AssetOrder;
 };
 export type BulkIdsDto = {

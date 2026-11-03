@@ -52,7 +52,8 @@ const withFolderAlbum = (eb: ExpressionBuilder<DB, 'album'>) =>
   jsonObjectFrom(
     eb
       .selectFrom('folder_album')
-      .select(['folder_album.enabled', 'folder_album.path'])
+      .innerJoin('user', 'user.id', 'folder_album.ownerId')
+      .select(['folder_album.enabled', 'folder_album.path', 'folder_album.ownerId', 'user.storageLabel'])
       .whereRef('folder_album.id', '=', 'album.id'),
   ).as('folderAlbum');
 
@@ -110,6 +111,39 @@ export class AlbumRepository {
 
   async disableFolderAlbum(id: string) {
     await this.db.updateTable('folder_album').set({ enabled: false }).where('id', '=', id).execute();
+  }
+
+  async isFolderPathReserved(path: string) {
+    return !!(await this.db.selectFrom('folder_album').select('id').where('path', '=', path).executeTakeFirst());
+  }
+
+  async updateFolderAlbumPath(id: string, path: string) {
+    await this.db.updateTable('folder_album').set({ path }).where('id', '=', id).executeTakeFirstOrThrow();
+  }
+
+  getFolderTransitionAssetIds(albumId: string) {
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('folder_album', 'folder_album.ownerId', 'asset.ownerId')
+      .select('asset.id as assetId')
+      .where('folder_album.id', '=', albumId)
+      .where((eb) =>
+        eb.or([
+          eb('asset.folderAlbumId', '=', albumId),
+          eb.and([
+            eb('folder_album.enabled', '=', true),
+            eb('asset.deletedAt', 'is', null),
+            eb.exists(
+              eb
+                .selectFrom('album_asset')
+                .select('assetId')
+                .where('album_asset.albumId', '=', albumId)
+                .whereRef('album_asset.assetId', '=', 'asset.id'),
+            ),
+          ]),
+        ]),
+      )
+      .execute();
   }
 
   getFolderAssetIds(albumId: string) {

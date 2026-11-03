@@ -165,12 +165,38 @@ export class StorageTemplateService extends BaseService {
   }
 
   @OnJob({ name: JobName.StorageTemplateMigrationSingle, queue: QueueName.StorageTemplateMigration })
-  async handleMigrationSingle({ id }: JobOf<JobName.StorageTemplateMigrationSingle>): Promise<JobStatus> {
+  async handleMigrationSingle({
+    id,
+    folderAssociation,
+  }: JobOf<JobName.StorageTemplateMigrationSingle>): Promise<JobStatus> {
     const config = await this.getConfig({ withCache: true });
     const isStorageTemplateEnabled = config.storageTemplate.enabled;
-    const asset = await this.assetJobRepository.getForStorageTemplateJob(id);
+    let asset = folderAssociation
+      ? await this.assetJobRepository.getForStorageTemplateJob(id, { includeHidden: true, includeTrashedBound: true })
+      : await this.assetJobRepository.getForStorageTemplateJob(id);
     if (!asset) {
       return isStorageTemplateEnabled ? JobStatus.Failed : JobStatus.Skipped;
+    }
+
+    if (folderAssociation) {
+      // A bound hidden motion file is also selected by an explicit directory
+      // transition. Process it through its still so job ordering cannot rename
+      // it using an unrelated motion originalFileName. Removed/trashed stills
+      // retain their binding and must remain eligible for this replay.
+      const stills = await this.assetJobRepository.getLivePhotoStills(asset.id, { includeTrashedBound: true });
+      if (stills.length > 1 || stills.some((still) => still.id === asset!.id || still.ownerId !== asset!.ownerId)) {
+        return JobStatus.Failed;
+      }
+      if (stills.length === 1) {
+        const still = await this.assetJobRepository.getForStorageTemplateJob(stills[0].id, {
+          includeHidden: true,
+          includeTrashedBound: true,
+        });
+        if (!still) {
+          return JobStatus.Failed;
+        }
+        asset = still;
+      }
     }
 
     const user = await this.userRepository.get(asset.ownerId, {});
@@ -185,6 +211,7 @@ export class StorageTemplateService extends BaseService {
     if (asset.livePhotoVideoId) {
       const livePhotoVideo = await this.assetJobRepository.getForStorageTemplateJob(asset.livePhotoVideoId, {
         includeHidden: true,
+        ...(folderAssociation && { includeTrashedBound: true }),
       });
       if (!livePhotoVideo) {
         return JobStatus.Failed;
@@ -284,6 +311,7 @@ export class StorageTemplateService extends BaseService {
         if (folder && target.livePhotoVideoId) {
           const motion = await this.assetJobRepository.getForStorageTemplateJob(target.livePhotoVideoId, {
             includeHidden: true,
+            includeTrashedBound: true,
           });
           if (!motion || motion.isExternal || StorageCore.isAndroidMotionPath(motion.originalPath)) {
             // Embedded Android motion remains upstream's derived-file special case.
@@ -315,7 +343,10 @@ export class StorageTemplateService extends BaseService {
         for (let pass = 0; pass < 2; pass++) {
           // A queued snapshot may predate either move. Refresh after recovery.
           const current = folder
-            ? await this.assetJobRepository.getForStorageTemplateJob(id, { includeHidden: true })
+            ? await this.assetJobRepository.getForStorageTemplateJob(id, {
+                includeHidden: true,
+                includeTrashedBound: true,
+              })
             : asset;
           if (!current) {
             return false;

@@ -1242,6 +1242,37 @@ describe('folder album first placement', () => {
     });
   });
 
+  it('processes an independently queued hidden motion through its bound still regardless of queue order', async () => {
+    const motion = getForStorageTemplate(
+      AssetFactory.from({
+        type: AssetType.Video,
+        originalPath: '/data/legacy/photo.mov',
+        originalFileName: 'unrelated.mov',
+      })
+        .owner(user)
+        .exif()
+        .build(),
+    );
+    asset.livePhotoVideoId = motion.id;
+    mocks.assetJob.getForStorageTemplateJob.mockImplementation((id) =>
+      Promise.resolve(id === motion.id ? motion : asset),
+    );
+    mocks.assetJob.getLivePhotoStills.mockImplementation((id) =>
+      Promise.resolve(id === motion.id ? [{ id: asset.id, ownerId: user.id }] : []),
+    );
+    await expect(sut.handleMigrationSingle({ id: motion.id, folderAssociation: true })).resolves.toBe(
+      JobStatus.Success,
+    );
+    expect(move).toHaveBeenCalledWith(
+      expect.objectContaining({ entityId: motion.id, newPath: `${folder.path}/photo.mov` }),
+    );
+    expect(mocks.assetJob.getForStorageTemplateJob).toHaveBeenCalledWith(motion.id, {
+      includeHidden: true,
+      includeTrashedBound: true,
+    });
+    expect(mocks.assetJob.getLivePhotoStills).toHaveBeenCalledWith(motion.id, { includeTrashedBound: true });
+  });
+
   it('finishes a retained stock destination before first placement instead of reporting an outside layout complete', async () => {
     const legacyDestination = '/data/library/stock/old-intent.jpg';
     mocks.move.getByEntity.mockResolvedValueOnce({

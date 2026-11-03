@@ -4,6 +4,8 @@
   import { getAssetMediaUrl } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
   import { getAllAlbums } from '@immich/sdk';
+  import { Icon } from '@immich/ui';
+  import { mdiFolderOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
   let albums = $state(userInteraction.recentAlbums);
@@ -39,8 +41,16 @@
           : ''}
       ></div>
     </div>
-    <div class="grow truncate text-sm font-medium">
-      {album.albumName}
+    <div class="flex min-w-0 grow items-center gap-1 text-sm font-medium">
+      {#if album.folderAlbum}
+        <Icon
+          icon={mdiFolderOutline}
+          size="16"
+          class="shrink-0"
+          title={$t(album.folderAlbum.enabled ? 'folder_album_marker_enabled' : 'folder_album_marker_retained')}
+        />
+      {/if}
+      <span class="truncate">{album.albumName}</span>
     </div>
   </a>
 {/each}

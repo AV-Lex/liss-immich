@@ -25,14 +25,14 @@ All upstream links below pin that commit; they describe stock source, not an
 installed instance. Start with the [README][readme], [CONTRIBUTING][contributing]
 and [architecture overview][architecture]; use the code for version-sensitive facts.
 
-| Responsibility | Contracts and implementation |
-| --- | --- |
-| Server | TypeScript/NestJS: HTTP controllers and DTOs call services; repositories handle database, filesystem and queue access. [Supervisor][supervisor] starts API and microservices workers. The [Compose file][compose] runs one server service, separate Python machine-learning service, PostgreSQL and a Redis-compatible Valkey queue service. The overview's separate microservices-container description is stale for this baseline. |
-| Web | TypeScript/SvelteKit UI in [web][web], using the generated TypeScript SDK. Existing [Folder View][folder-doc] and [folder store][folder-store] browse physical original paths; [ViewRepository][view-repo] selects directories/assets from `asset.originalPath`, scoped to the user and visible, nondeleted timeline assets. This is a view, not an album-to-folder binding or reverse filesystem sync. |
-| Mobile and CLI | Flutter/Dart mobile client handles local media, backup and remote sync; [linked-album sync][mobile-sync] uses a Drift database and Riverpod providers (the overview's Isar description is stale). [CLI][cli] provides API-driven bulk upload. Neither client owns server-side physical placement. |
-| Persistent data | PostgreSQL holds users, permissions, metadata, identities and relations. [Asset][asset-table] has a generated ID, owner, checksum, `originalPath`, `originalFileName` and file timestamps. [Album][album-table] has its own generated ID/name; [album_asset][album-asset] is a many-to-many relation. [asset_file][asset-file] tracks sidecars/derived files. Filesystem paths are mutable attributes, not asset or album IDs. |
-| Storage and jobs | [StorageCore][storage-core] owns common paths and recoverable moves; [StorageRepository][storage-repo] wraps filesystem operations. [JobRepository][jobs] uses BullMQ; decorated service handlers implement metadata extraction, previews, transcoding, storage migration and other jobs. Original bytes live on disk; SQL state and queue state have separate responsibilities. |
-| Generated interfaces | Controllers/DTOs produce [OpenAPI JSON][openapi]; [API guide][api-doc] explains generation. The actual [mise tasks][mise] run server schema export and generate TypeScript into `packages/sdk/src/fetch-client.ts` and Dart into `mobile/generated/openapi/` (the guide's TypeScript output path is stale). Update contracts and regenerate clients together when a public API changes. |
+| Responsibility       | Contracts and implementation                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Server               | TypeScript/NestJS: HTTP controllers and DTOs call services; repositories handle database, filesystem and queue access. [Supervisor][supervisor] starts API and microservices workers. The [Compose file][compose] runs one server service, separate Python machine-learning service, PostgreSQL and a Redis-compatible Valkey queue service. The overview's separate microservices-container description is stale for this baseline. |
+| Web                  | TypeScript/SvelteKit UI in [web][web], using the generated TypeScript SDK. Existing [Folder View][folder-doc] and [folder store][folder-store] browse physical original paths; [ViewRepository][view-repo] selects directories/assets from `asset.originalPath`, scoped to the user and visible, nondeleted timeline assets. This is a view, not an album-to-folder binding or reverse filesystem sync.                              |
+| Mobile and CLI       | Flutter/Dart mobile client handles local media, backup and remote sync; [linked-album sync][mobile-sync] uses a Drift database and Riverpod providers (the overview's Isar description is stale). [CLI][cli] provides API-driven bulk upload. Neither client owns server-side physical placement.                                                                                                                                    |
+| Persistent data      | PostgreSQL holds users, permissions, metadata, identities and relations. [Asset][asset-table] has a generated ID, owner, checksum, `originalPath`, `originalFileName` and file timestamps. [Album][album-table] has its own generated ID/name; [album_asset][album-asset] is a many-to-many relation. [asset_file][asset-file] tracks sidecars/derived files. Filesystem paths are mutable attributes, not asset or album IDs.       |
+| Storage and jobs     | [StorageCore][storage-core] owns common paths and recoverable moves; [StorageRepository][storage-repo] wraps filesystem operations. [JobRepository][jobs] uses BullMQ; decorated service handlers implement metadata extraction, previews, transcoding, storage migration and other jobs. Original bytes live on disk; SQL state and queue state have separate responsibilities.                                                     |
+| Generated interfaces | Controllers/DTOs produce [OpenAPI JSON][openapi]; [API guide][api-doc] explains generation. The actual [mise tasks][mise] run server schema export and generate TypeScript into `packages/sdk/src/fetch-client.ts` and Dart into `mobile/generated/openapi/` (the guide's TypeScript output path is stale). Update contracts and regenerate clients together when a public API changes.                                              |
 
 ### Upload, association and placement
 
@@ -111,7 +111,7 @@ for first placement into readable, distinct album directories. Ordinary logical
 albums and unchanged upload/Add/Remove clients retain their normal contracts.
 
 - [`folder_album`](server/src/schema/tables/folder-album.table.ts) retains the
-  existing album UUID, owner, immutable directory and enabled state. An asset's
+  existing album UUID, owner, reserved directory and enabled state. An asset's
   first `folderAlbumId` persists independently of later logical membership.
   Rename, unmark and logical album deletion retain existing placement; deleted
   albums leave a disabled binding. Account/asset deletion remains upstream.
@@ -133,8 +133,12 @@ albums and unchanged upload/Add/Remove clients retain their normal contracts.
   bounded four-connection lock pool; nested motion extraction reuses its session.
   Long readers can delay placement without occupying ordinary query connections.
 - A directory is allocated once beneath the owner's library root as
-  `folder-albums/<sanitized-name>--<full-album-UUID>`. Names are bounded in UTF-8
-  bytes; UUIDs distinguish equal/sanitized names. Existing collision suffixes are
+  `folder-albums/<sanitized-name>`, with readable suffixes such as `Camera (2)`
+  distinguishing equal/sanitized names. Names are bounded in UTF-8 bytes; retained
+  bindings, filesystem entries and outstanding move-history directories reserve
+  their destinations. Existing UUID-suffixed D1 bindings change only through an
+  explicit owner-selected recoverable transition; ordinary display rename does
+  not move files. Existing collision suffixes are
   reused and sidecar destinations are reserved. A retained move-history
   destination wins over a newly computed suffix on retry. Live Photo motion
   follows the still's binding; foreign-owned/external originals are excluded.
@@ -151,7 +155,10 @@ albums and unchanged upload/Add/Remove clients retain their normal contracts.
 - The additive native migration is
   [`1793289600000-FolderAlbums`](server/src/schema/migrations/1793289600000-FolderAlbums.ts).
   It moves no files and opts no existing rows in. The web album menu provides
-  selection/status and links to existing Folder View. Optional OpenAPI/TypeScript
+  selection/status and links to existing Folder View. Table/sidebar/card folder
+  markers distinguish retained and enabled bindings; cards link a path label
+  shortened relative to the existing owner library root. Folder View and its
+  breadcrumbs retain their existing presentation. Optional OpenAPI/TypeScript
   fields are regenerated with the native Dart generator (Dart output remains
   ignored under the existing repository policy).
 

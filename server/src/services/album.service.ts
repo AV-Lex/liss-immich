@@ -17,7 +17,7 @@ import {
 import { BulkIdErrorReason, BulkIdResponseDto, BulkIdsDto } from 'src/dtos/asset-ids.response.dto.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { MapMarkerResponseDto } from 'src/dtos/map.dto.js';
-import { AlbumUserRole, DatabaseLock, Permission } from 'src/enum.js';
+import { AlbumUserRole, DatabaseLock, JobName, Permission } from 'src/enum.js';
 import { AlbumAssetCount, AlbumInfoOptions } from 'src/repositories/album.repository.js';
 import { BaseService } from 'src/services/base.service.js';
 import { addAssets, removeAssets } from 'src/utils/asset.util.js';
@@ -145,13 +145,17 @@ export class AlbumService extends BaseService {
 
     const album = await this.findOrFail(id, auth.user.id, { withAssets: true });
 
+    if (dto.migrateFolderName && dto.isFolderAlbum !== undefined) {
+      throw new BadRequestException('Change folder enablement and migrate its name in separate requests');
+    }
+
     if (dto.albumThumbnailAssetId) {
       const results = await this.albumRepository.getAssetIds(id, [dto.albumThumbnailAssetId]);
       if (results.size === 0) {
         throw new BadRequestException('Invalid album thumbnail');
       }
     }
-    if (dto.isFolderAlbum !== undefined) {
+    if (dto.isFolderAlbum !== undefined || dto.migrateFolderName) {
       if (
         auth.sharedLink ||
         album.albumUsers.every(({ user, role }) => !(user.id === auth.user.id && role === AlbumUserRole.Owner))
@@ -159,26 +163,26 @@ export class AlbumService extends BaseService {
         throw new BadRequestException('Only the album owner can change folder placement');
       }
       await this.databaseRepository.withLock(DatabaseLock.StorageTemplateMigration, async () => {
-        if (!dto.isFolderAlbum) {
+        const folder = await this.albumRepository.getFolderAlbum(id);
+        if (dto.migrateFolderName && !folder) {
+          throw new BadRequestException('Album has no existing folder placement');
+        }
+        if (dto.migrateFolderName && folder && this.isLegacyFolderPath(folder.path, id)) {
+          const target = await this.allocateFolderPath(id, auth.user.id, album.albumName);
+          await this.albumRepository.updateFolderAlbumPath(id, target);
+        }
+        if (dto.isFolderAlbum === false) {
           await this.albumRepository.disableFolderAlbum(id);
           return;
         }
-        const user = await this.userRepository.get(auth.user.id, {});
-        const characters = [...sanitize((album.albumName || 'Album').replaceAll(/\.+/g, ''))];
-        while (Buffer.byteLength(characters.join('')) > 180) {
-          characters.pop();
+        if (dto.isFolderAlbum === true) {
+          await this.albumRepository.setFolderAlbum({
+            id,
+            ownerId: auth.user.id,
+            enabled: true,
+            path: folder?.path ?? (await this.allocateFolderPath(id, auth.user.id, album.albumName)),
+          });
         }
-        const name = characters.join('') || 'Album';
-        await this.albumRepository.setFolderAlbum({
-          id,
-          ownerId: auth.user.id,
-          enabled: true,
-          path: path.join(
-            StorageCore.getLibraryFolder({ id: auth.user.id, storageLabel: user?.storageLabel || null }),
-            'folder-albums',
-            `${name}--${id}`,
-          ),
-        });
       });
     }
     const updatedAlbum = await this.albumRepository.update(
@@ -194,7 +198,17 @@ export class AlbumService extends BaseService {
       auth.user.id,
     );
 
-    if (dto.isFolderAlbum) {
+    if (dto.migrateFolderName) {
+      // The binding path is the durable target. Repeating this explicitly selected
+      // request repairs an interrupted enqueue without selecting another target.
+      const assets = await this.albumRepository.getFolderTransitionAssetIds(id);
+      for (const { assetId } of assets) {
+        await this.jobRepository.queue({
+          name: JobName.StorageTemplateMigrationSingle,
+          data: { id: assetId, folderAssociation: true },
+        });
+      }
+    } else if (dto.isFolderAlbum) {
       const assets = await this.albumRepository.getFolderAssetIds(id);
       await this.eventRepository.emit('AlbumAssetsChanged', {
         albumId: id,
@@ -202,6 +216,32 @@ export class AlbumService extends BaseService {
       });
     }
     return mapAlbum({ ...updatedAlbum, assets: album.assets });
+  }
+
+  private isLegacyFolderPath(folderPath: string, albumId: string) {
+    return path.basename(folderPath).endsWith(`--${albumId}`);
+  }
+
+  private async allocateFolderPath(albumId: string, ownerId: string, albumName: string) {
+    const user = await this.userRepository.get(ownerId, {});
+    const characters = [...sanitize((albumName || 'Album').normalize('NFC').replaceAll(/\.+/g, '')).trim()];
+    while (Buffer.byteLength(characters.join('')) > 180) {
+      characters.pop();
+    }
+    const name = characters.join('') || 'Album';
+    const root = StorageCore.getLibraryFolder({ id: ownerId, storageLabel: user?.storageLabel || null });
+    for (let number = 1; number <= 10_000; number++) {
+      const candidate = path.join(root, 'folder-albums', `${name}${number === 1 ? '' : ` (${number})`}`);
+      if (
+        !this.isLegacyFolderPath(candidate, albumId) &&
+        !(await this.albumRepository.isFolderPathReserved(candidate)) &&
+        !(await this.moveRepository.isFolderPathReserved(candidate)) &&
+        !(await this.storageRepository.pathExists(candidate))
+      ) {
+        return candidate;
+      }
+    }
+    throw new BadRequestException('No available folder name');
   }
 
   async delete(auth: AuthDto, id: string): Promise<void> {

@@ -2,7 +2,7 @@
 
 RECORDED_DATE = EVENT_DATE = 2026-11-03
 ASSIGNMENT_ID = liss-immich-development
-STATE = D1_INSTALLED_NATIVE / WAIT_INTERACTIVE_VERIFICATION
+STATE = D1_INSTALLED_NATIVE / FOLLOWUP_16_SOURCE_ACCEPTED / WAIT_OPERATOR_UPDATE
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
@@ -49,11 +49,40 @@ does not establish installed Russian UI behavior. Native packaging/update and
 live UI read-back remain operator-owned. The accepted installed implementation
 and artifact identities below remain unchanged.
 
-Next development pickup: [#16](https://github.com/AV-Lex/liss-immich/issues/16),
-the agreed readable physical names, folder markers and relative card path labels,
-including a bounded recoverable transition for an existing D1 directory.
-Localization does not wait for that task. No maintainer finish decision has been
-given; the assignment remains active through agreed fixes and installed checks.
+The agreed [#16](https://github.com/AV-Lex/liss-immich/issues/16) follow-up is
+source-accepted through [PR #19](https://github.com/AV-Lex/liss-immich/pull/19),
+based on `72da94c01db610c261213396f58772c6a29245f0` (including #17 localization).
+Its exact final source, reproducible checks and review disposition are returned
+in that task thread. Reviewed implementation:
+[`7b5a76c9d0f58bda5e9af34d74ed10c34c48f28b`](https://github.com/AV-Lex/liss-immich/commit/7b5a76c9d0f58bda5e9af34d74ed10c34c48f28b);
+later test/continuation-only edits preserve the production files.
+
+New allocations use readable reserved names and numeric collision suffixes. An
+explicit owner-only `migrateFolderName: true` album update transitions one existing
+UUID directory, preserves enabled state and replays bound removed/hidden/trashed
+files through existing jobs/move history. Ordinary display rename does not move
+files. Table/sidebar/card markers distinguish enabled and retained bindings;
+cards link an owner-root-relative label to the real folder. The
+[bounded native transition and recovery contract](docs/docs/features/folder-albums.md#one-existing-d1-directory-explicit-readable-name-transition)
+defines the operator action. No new schema migration or bulk rename is added.
+
+Independent behavior and pre-design simplicity checks passed. Required Claude
+review `claude-liss / 64a340d5-876d-465e-bd5b-80df524577ca` found no violated source
+invariant; its enabled-legacy coverage finding was accepted and committed as
+native medium cases for both enabled states and original/sidecar interruptions.
+The source result records actual CI evidence and remaining tooling limits.
+Case-insensitive filesystem equivalence, arbitrary submillisecond replay and
+real-browser hit testing are not established by the source checks.
+
+Next owner: assigned operator for the combined native package/update, matching
+recovery set, case-sensitive filesystem qualification and one selected existing
+D1 binding transition, then live Russian marker/path/link/menu checks with the
+maintainer. Return sanitized installed identity/results to #16 and #2 (and #17
+for localization read-back). The installed source/artifacts below remain the
+previous D1 release until that return; source acceptance does not establish an
+installed update. Phone upload/association/later-upload, full-image opening and
+the maintainer finish decision remain separate open steps. The assignment stays
+active through those checks and any agreed fixes; it is not PARKED.
 
 The [2026-11-02 disposable native qualification checkpoint](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6575973972)
 records operator-reported PASS for additive migration/default-off, existing-member
