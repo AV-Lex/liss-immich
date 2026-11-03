@@ -124,23 +124,29 @@ describe('folder album DB/jobs and real files', () => {
     await mkdir(root, { recursive: true });
     await symlink(join(root, 'absent'), join(root, 'TripOne (2)'));
     const { asset } = await ctx.newAsset({ ownerId: user.id });
-    await ctx.get(MoveRepository).create({
+    const reservation = await ctx.get(MoveRepository).create({
       entityId: asset.id,
       pathType: AssetPathType.Original,
       oldPath: join(directory, 'pending.jpg'),
       newPath: join(root, 'TripOne (3)', 'pending.jpg'),
     });
-    const { album: second } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Trip:One' });
-    const next = await albums.update(auth, second.id, { isFolderAlbum: true });
-    expect(next.folderAlbum?.path).toBe(join(root, 'TripOne (4)'));
-    const retry = await albums.update(auth, second.id, { albumName: 'Changed', isFolderAlbum: true });
-    expect(retry.folderAlbum?.path).toBe(next.folderAlbum?.path);
-    const { album: accent } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Cafe\u{0301}' });
-    const { album: normalized } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Café' });
-    expect((await albums.update(auth, accent.id, { isFolderAlbum: true })).folderAlbum?.path).toBe(join(root, 'Café'));
-    expect((await albums.update(auth, normalized.id, { isFolderAlbum: true })).folderAlbum?.path).toBe(
-      join(root, 'Café (2)'),
-    );
+    try {
+      const { album: second } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Trip:One' });
+      const next = await albums.update(auth, second.id, { isFolderAlbum: true });
+      expect(next.folderAlbum?.path).toBe(join(root, 'TripOne (4)'));
+      const retry = await albums.update(auth, second.id, { albumName: 'Changed', isFolderAlbum: true });
+      expect(retry.folderAlbum?.path).toBe(next.folderAlbum?.path);
+      const { album: accent } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Cafe\u{0301}' });
+      const { album: normalized } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Café' });
+      expect((await albums.update(auth, accent.id, { isFolderAlbum: true })).folderAlbum?.path).toBe(
+        join(root, 'Café'),
+      );
+      expect((await albums.update(auth, normalized.id, { isFolderAlbum: true })).folderAlbum?.path).toBe(
+        join(root, 'Café (2)'),
+      );
+    } finally {
+      await ctx.get(MoveRepository).delete(reservation.id);
+    }
   });
 
   it.each([
@@ -160,12 +166,14 @@ describe('folder album DB/jobs and real files', () => {
       await ctx.get(AlbumRepository).setFolderAlbum({ id: album.id, ownerId: user.id, path: oldFolder, enabled });
       const sidecarBytes = Buffer.from('<xmp>transition</xmp>');
       const motionBytes = Buffer.from('transition motion');
+      const trashBytes = Buffer.from('transition trash');
+      const memberBytes = Buffer.from('transition new member');
       const entries = [
         [join(oldFolder, 'photo.jpg'), bytes],
         [join(oldFolder, 'photo.jpg.xmp'), sidecarBytes],
         [join(oldFolder, 'photo.mov'), motionBytes],
-        [join(oldFolder, 'trash.jpg'), bytes],
-        [join(directory, 'new-member.jpg'), bytes],
+        [join(oldFolder, 'trash.jpg'), trashBytes],
+        [join(directory, 'new-member.jpg'), memberBytes],
       ] as const;
       for (const [filename, data] of entries) {
         await writeFile(filename, data);
@@ -193,7 +201,7 @@ describe('folder album DB/jobs and real files', () => {
         folderAlbumId: album.id,
         originalPath: entries[3][0],
         originalFileName: 'trash.jpg',
-        checksum,
+        checksum: createHash('sha1').update(trashBytes).digest(),
         deletedAt: new Date(),
       });
       const { asset: unboundTrash } = await ctx.newAsset({ ownerId: user.id, deletedAt: new Date() });
@@ -201,16 +209,16 @@ describe('folder album DB/jobs and real files', () => {
         ownerId: user.id,
         originalPath: entries[4][0],
         originalFileName: 'new-member.jpg',
-        checksum,
+        checksum: createHash('sha1').update(memberBytes).digest(),
       });
       const assets = ctx.get(AssetRepository);
       await assets.upsertFile({ assetId: still.id, type: AssetFileType.Sidecar, path: entries[1][0] });
       for (const [id, size] of [
         [still.id, bytes.length],
         [motion.id, motionBytes.length],
-        [trash.id, bytes.length],
+        [trash.id, trashBytes.length],
         [unboundTrash.id, bytes.length],
-        [newMember.id, bytes.length],
+        [newMember.id, memberBytes.length],
       ] as const) {
         await assets.upsertExif({ lockedPropertiesBehavior: 'override', exif: { assetId: id, fileSizeInByte: size } });
         await assets.upsertJobStatus({ assetId: id, metadataExtractedAt: new Date() });
@@ -274,13 +282,13 @@ describe('folder album DB/jobs and real files', () => {
         [join(target, 'photo.jpg'), bytes],
         [join(target, 'photo.jpg.xmp'), sidecarBytes],
         [join(target, 'photo.mov'), motionBytes],
-        [join(target, 'trash.jpg'), bytes],
+        [join(target, 'trash.jpg'), trashBytes],
       ] as const) {
         expect(await readFile(filename)).toEqual(data);
         expect((await stat(filename)).mtimeMs).toBe(mtime.getTime());
       }
       const memberPath = enabled ? join(target, 'new-member.jpg') : entries[4][0];
-      expect(await readFile(memberPath)).toEqual(bytes);
+      expect(await readFile(memberPath)).toEqual(memberBytes);
       expect((await stat(memberPath)).mtimeMs).toBe(mtime.getTime());
       expect((await assets.getById(newMember.id))?.originalPath).toBe(memberPath);
       expect((await assets.getById(newMember.id))?.folderAlbumId).toBe(enabled ? album.id : null);
