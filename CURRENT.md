@@ -1,6 +1,6 @@
 # Liss Immich — CURRENT
 
-RECORDED_DATE = EVENT_DATE = 2026-11-02
+RECORDED_DATE = EVENT_DATE = 2026-11-03
 ASSIGNMENT_ID = liss-immich-development
 STATE = D1_INSTALLED_NATIVE / WAIT_INTERACTIVE_VERIFICATION
 INTEGRATION_BRANCH = liss
@@ -33,6 +33,27 @@ analysis limits remain explicit in the acceptance record. Source acceptance
 does not establish installed operation.
 
 ## Next dependency and owner
+
+The [2026-11-03 installed-use return](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6610909041)
+reports maintainer confirmation of owner opt-in, enabled status/directory link and
+Folder View showing two existing images. The operator independently reports
+preserved asset IDs, bytes/SHA1/SHA256, original basenames and mtime_ns after
+placement, with zero outstanding moves. This bounded web/existing-member
+checkpoint does not establish phone upload/association/later-upload behavior or
+opening each full image.
+
+The maintainer requested concrete D1 fixes, [split into two tasks](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6611027359).
+[#17](https://github.com/AV-Lex/liss-immich/issues/17) adds Russian translations
+for the five existing folder-album strings in `i18n/ru.json`; its source result
+does not establish installed Russian UI behavior. Native packaging/update and
+live UI read-back remain operator-owned. The accepted installed implementation
+and artifact identities below remain unchanged.
+
+Next development pickup: [#16](https://github.com/AV-Lex/liss-immich/issues/16),
+the agreed readable physical names, folder markers and relative card path labels,
+including a bounded recoverable transition for an existing D1 directory.
+Localization does not wait for that task. No maintainer finish decision has been
+given; the assignment remains active through agreed fixes and installed checks.
 
 The [2026-11-02 disposable native qualification checkpoint](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6575973972)
 records operator-reported PASS for additive migration/default-off, existing-member
