@@ -32,8 +32,8 @@ describe('AlbumCardGroup navigation', () => {
       'href',
       Route.folders({ path: album.folderAlbum!.path }),
     );
-    const menuButton = sut.getByRole('button', { name: 'Show album options' });
-    expect(menuButton.closest('a')).not.toBeInTheDocument();
+    expect(sut.getByRole('button', { name: 'Show album options' })).toBeInTheDocument();
+    expect(sut.container.querySelector('a button')).not.toBeInTheDocument();
     expect(sut.container.querySelector('a a')).not.toBeInTheDocument();
 
     await fireEvent.contextMenu(sut.getByTestId('album-image'));

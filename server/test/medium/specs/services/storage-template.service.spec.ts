@@ -199,6 +199,7 @@ describe('folder album DB/jobs and real files', () => {
         [still.id, bytes.length],
         [motion.id, motionBytes.length],
         [trash.id, bytes.length],
+        [unboundTrash.id, bytes.length],
       ] as const) {
         await assets.upsertExif({ lockedPropertiesBehavior: 'override', exif: { assetId: id, fileSizeInByte: size } });
         await assets.upsertJobStatus({ assetId: id, metadataExtractedAt: new Date() });

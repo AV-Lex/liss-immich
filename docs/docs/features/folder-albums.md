@@ -15,6 +15,11 @@ directories are excluded. Sidecars use the
 original's destination plus `.xmp`; linked motion files use the still's folder.
 External assets and embedded Android motion files retain upstream behavior.
 
+Directory reservations compare normalized POSIX paths case-sensitively. The
+source checks qualify case-sensitive storage; equivalence on case-insensitive
+library filesystems is not established. Confirm the intended filesystem during
+native qualification before enabling or transitioning a folder.
+
 The first folder assignment is persistent. Adding an assigned asset to another
 album, removing membership, renaming an album, stopping new assignments, or
 deleting the logical album does not move or delete its original. The folder's
