@@ -63,8 +63,9 @@ Keep the old source/release and evidence until installed verification and any
 agreed fixes are complete.
 
 1. Read the selected owner's album and retain its ID, folder binding/enabled
-   state, current path, all bound asset IDs and each original/sidecar/motion path.
-   Include bound assets removed from logical membership, hidden motion companions
+   state, current path, all bound asset IDs plus eligible current members while
+   enabled, and each original/sidecar/motion path. Include bound assets removed
+   from logical membership, hidden motion companions
    and trashed bound originals. Record bytes/hash and filesystem mtime; retain
    unresolved move history and its files. This is the bounded inventory to compare
    after completion, not permission to opt in another real-library album.
@@ -99,7 +100,9 @@ agreed fixes are complete.
 6. In the served web UI, verify the folder marker beside the table name, in the
    sidebar and on the card cover, including stopped-new-assignment status. Check
    the path label beneath the card title, its actual Folder View destination,
-   ordinary album navigation/menus and unchanged Folder View breadcrumbs. Return
+   ordinary album navigation/menus and unchanged Folder View breadcrumbs. Click
+   the cover/title, folder link and menu button separately to check that the
+   stretched album link does not intercept the other controls. Return
    the exact installed source/artifact identity, bounded transition result and UI
    limits to [#16](https://github.com/AV-Lex/liss-immich/issues/16) and D1 #2.
 
