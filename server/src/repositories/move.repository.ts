@@ -14,6 +14,21 @@ export class MoveRepository {
     return this.db.insertInto('move_history').values(entity).returningAll().executeTakeFirstOrThrow();
   }
 
+  async isFolderPathReserved(directory: string) {
+    // A retained move may reserve an otherwise absent directory. Preserve both
+    // ends until recovery clears the intent; do not lend it to another album.
+    return !!(await this.db
+      .selectFrom('move_history')
+      .select('id')
+      .where((eb) =>
+        eb.or([
+          eb(sql<string>`regexp_replace("oldPath", '/[^/]*$', '')`, '=', directory),
+          eb(sql<string>`regexp_replace("newPath", '/[^/]*$', '')`, '=', directory),
+        ]),
+      )
+      .executeTakeFirst());
+  }
+
   @GenerateSql({ params: [DummyValue.UUID, DummyValue.STRING] })
   getByEntity(entityId: string, pathType: PathType) {
     return this.db

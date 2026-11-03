@@ -22586,6 +22586,10 @@
           },
           "path": {
             "type": "string"
+          },
+          "relativePath": {
+            "description": "Display path relative to the owner library root; not a filesystem input",
+            "type": "string"
           }
         },
         "required": [
@@ -32643,6 +32647,13 @@
           },
           "isFolderAlbum": {
             "description": "Owner opt-in to first physical placement; existing bindings never move on unmark",
+            "type": "boolean"
+          },
+          "migrateFolderName": {
+            "description": "Owner-only explicit transition of this existing UUID directory to a readable name; repeat to replay",
+            "enum": [
+              true
+            ],
             "type": "boolean"
           },
           "order": {

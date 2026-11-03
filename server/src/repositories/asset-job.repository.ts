@@ -389,16 +389,20 @@ export class AssetJobRepository {
   }
 
   @GenerateSql({ params: [DummyValue.UUID] })
-  getLivePhotoStills(videoId: string) {
+  getLivePhotoStills(videoId: string, options?: { includeTrashedBound?: boolean }) {
     return this.db
       .selectFrom('asset')
       .select(['id', 'ownerId'])
       .where('livePhotoVideoId', '=', videoId)
-      .where('deletedAt', 'is', null)
+      .where((eb) =>
+        options?.includeTrashedBound
+          ? eb.or([eb('deletedAt', 'is', null), eb('folderAlbumId', 'is not', null)])
+          : eb('deletedAt', 'is', null),
+      )
       .execute();
   }
 
-  private storageTemplateAssetQuery() {
+  private storageTemplateAssetQuery(includeTrashedBound = false) {
     return this.db
       .selectFrom('asset')
       .innerJoin('asset_exif', 'asset.id', 'asset_exif.assetId')
@@ -420,12 +424,16 @@ export class AssetJobRepository {
         'asset_exif.lensModel',
       ])
       .select((eb) => withFiles(eb, AssetFileType.Sidecar))
-      .where('asset.deletedAt', 'is', null);
+      .where((eb) =>
+        includeTrashedBound
+          ? eb.or([eb('asset.deletedAt', 'is', null), eb('asset.folderAlbumId', 'is not', null)])
+          : eb('asset.deletedAt', 'is', null),
+      );
   }
 
   @GenerateSql({ params: [DummyValue.UUID] })
-  getForStorageTemplateJob(id: string, options?: { includeHidden?: boolean }) {
-    return this.storageTemplateAssetQuery()
+  getForStorageTemplateJob(id: string, options?: { includeHidden?: boolean; includeTrashedBound?: boolean }) {
+    return this.storageTemplateAssetQuery(options?.includeTrashedBound)
       .where('asset.id', '=', id)
       .$if(!options?.includeHidden, (qb) => qb.where('asset.visibility', '!=', AssetVisibility.Hidden))
       .executeTakeFirst();

@@ -2,7 +2,7 @@
 import { Kysely, sql } from 'kysely';
 import { FileMigrationProvider, Migrator } from 'kysely/migration';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StorageCore } from 'src/cores/storage.core.js';
@@ -108,6 +108,182 @@ afterAll(async () => {
 });
 
 describe('folder album DB/jobs and real files', () => {
+  it('reserves readable names across disabled bindings, filesystem entries and unfinished move directories', async () => {
+    const { sut: albums, ctx } = setup(AlbumService);
+    const { user } = await ctx.newUser();
+    const auth = factory.auth({ user });
+    const { album: first } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Trip/One' });
+    const enabled = await albums.update(auth, first.id, { isFolderAlbum: true });
+    const root = join(StorageCore.getLibraryFolder(user), 'folder-albums');
+    expect(enabled.folderAlbum).toEqual({
+      enabled: true,
+      path: join(root, 'TripOne'),
+      relativePath: 'folder-albums/TripOne',
+    });
+    await albums.update(auth, first.id, { isFolderAlbum: false });
+    await mkdir(root, { recursive: true });
+    await symlink(join(root, 'absent'), join(root, 'TripOne (2)'));
+    const { asset } = await ctx.newAsset({ ownerId: user.id });
+    await ctx.get(MoveRepository).create({
+      entityId: asset.id,
+      pathType: AssetPathType.Original,
+      oldPath: join(directory, 'pending.jpg'),
+      newPath: join(root, 'TripOne (3)', 'pending.jpg'),
+    });
+    const { album: second } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Trip:One' });
+    const next = await albums.update(auth, second.id, { isFolderAlbum: true });
+    expect(next.folderAlbum?.path).toBe(join(root, 'TripOne (4)'));
+    const retry = await albums.update(auth, second.id, { albumName: 'Changed', isFolderAlbum: true });
+    expect(retry.folderAlbum?.path).toBe(next.folderAlbum?.path);
+    const { album: accent } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Cafe\u0301' });
+    const { album: normalized } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Café' });
+    expect((await albums.update(auth, accent.id, { isFolderAlbum: true })).folderAlbum?.path).toBe(join(root, 'Café'));
+    expect((await albums.update(auth, normalized.id, { isFolderAlbum: true })).folderAlbum?.path).toBe(
+      join(root, 'Café (2)'),
+    );
+  });
+
+  it.each([AssetPathType.Original, AssetFileType.Sidecar])(
+    'replays a selected legacy directory with removed still, hidden motion and trash after interruption at %s',
+    async (interrupt) => {
+      const { sut: albums, ctx } = setup(AlbumService);
+      const { user } = await ctx.newUser();
+      const auth = factory.auth({ user });
+      const { album } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Trip' });
+      const oldFolder = join(StorageCore.getLibraryFolder(user), 'folder-albums', `Trip--${album.id}`);
+      await mkdir(oldFolder, { recursive: true });
+      await ctx
+        .get(AlbumRepository)
+        .setFolderAlbum({ id: album.id, ownerId: user.id, path: oldFolder, enabled: false });
+      const sidecarBytes = Buffer.from('<xmp>transition</xmp>');
+      const motionBytes = Buffer.from('transition motion');
+      const entries = [
+        [join(oldFolder, 'photo.jpg'), bytes],
+        [join(oldFolder, 'photo.jpg.xmp'), sidecarBytes],
+        [join(oldFolder, 'photo.mov'), motionBytes],
+        [join(oldFolder, 'trash.jpg'), bytes],
+      ] as const;
+      for (const [filename, data] of entries) {
+        await writeFile(filename, data);
+        await utimes(filename, mtime, mtime);
+      }
+      const { asset: motion } = await ctx.newAsset({
+        ownerId: user.id,
+        folderAlbumId: album.id,
+        originalPath: entries[2][0],
+        originalFileName: 'unrelated-motion.mov',
+        type: AssetType.Video,
+        visibility: AssetVisibility.Hidden,
+        checksum: createHash('sha1').update(motionBytes).digest(),
+      });
+      const { asset: still } = await ctx.newAsset({
+        ownerId: user.id,
+        folderAlbumId: album.id,
+        originalPath: entries[0][0],
+        originalFileName: 'photo.jpg',
+        checksum,
+        livePhotoVideoId: motion.id,
+      });
+      const { asset: trash } = await ctx.newAsset({
+        ownerId: user.id,
+        folderAlbumId: album.id,
+        originalPath: entries[3][0],
+        originalFileName: 'trash.jpg',
+        checksum,
+        deletedAt: new Date(),
+      });
+      const { asset: unboundTrash } = await ctx.newAsset({ ownerId: user.id, deletedAt: new Date() });
+      const assets = ctx.get(AssetRepository);
+      await assets.upsertFile({ assetId: still.id, type: AssetFileType.Sidecar, path: entries[1][0] });
+      for (const [id, size] of [
+        [still.id, bytes.length],
+        [motion.id, motionBytes.length],
+        [trash.id, bytes.length],
+      ] as const) {
+        await assets.upsertExif({ lockedPropertiesBehavior: 'override', exif: { assetId: id, fileSizeInByte: size } });
+        await assets.upsertJobStatus({ assetId: id, metadataExtractedAt: new Date() });
+      }
+      // Bound files need not retain logical membership; the disabled binding
+      // still selects all of them and does not opt new members in.
+      await ctx.get(AlbumRepository).addAssetIds(album.id, [still.id]);
+      await albums.removeAssets(auth, album.id, { ids: [still.id] });
+      const moves = ctx.get(MoveRepository);
+      const retainedTarget = join(oldFolder, 'retained.jpg');
+      await moves.create({
+        entityId: still.id,
+        pathType: AssetPathType.Original,
+        oldPath: entries[0][0],
+        newPath: retainedTarget,
+      });
+      await moves.create({
+        entityId: still.id,
+        pathType: AssetFileType.Sidecar,
+        oldPath: entries[1][0],
+        newPath: `${retainedTarget}.xmp`,
+      });
+      const response = await albums.update(auth, album.id, { migrateFolderName: true });
+      const target = join(StorageCore.getLibraryFolder(user), 'folder-albums', 'Trip');
+      expect(response.folderAlbum).toEqual({ enabled: false, path: target, relativePath: 'folder-albums/Trip' });
+      expect(
+        ctx
+          .getMock(JobRepository)
+          .queue.mock.calls.map(([job]) => (job.data && 'id' in job.data ? job.data.id : undefined))
+          .sort(),
+      ).toEqual([still.id, motion.id, trash.id].sort());
+      expect(
+        await ctx.get(AssetJobRepository).getForStorageTemplateJob(unboundTrash.id, { includeTrashedBound: true }),
+      ).toBeUndefined();
+      const placement = setup(StorageTemplateService);
+      placement.sut.onConfigInit({ newConfig: defaults });
+      const storage = placement.ctx.get(StorageRepository);
+      const rename = storage.rename.bind(storage);
+      const interruptedPath = join(target, interrupt === AssetPathType.Original ? 'photo.jpg' : 'photo.jpg.xmp');
+      vi.spyOn(storage, 'rename').mockImplementation(async (oldPath, newPath) => {
+        await rename(oldPath, newPath);
+        if (newPath === interruptedPath) {
+          throw new Error('synthetic interruption after rename before database path update');
+        }
+      });
+      // Motion first must follow its removed still rather than its own filename.
+      await expect(placement.sut.handleMigrationSingle({ id: motion.id, folderAssociation: true })).resolves.toBe(
+        JobStatus.Failed,
+      );
+      expect((await moves.getByEntity(still.id, interrupt))?.newPath).toBe(interruptedPath);
+      expect(await readFile(interruptedPath)).toEqual(interrupt === AssetPathType.Original ? bytes : sidecarBytes);
+      expect((await albums.update(auth, album.id, { migrateFolderName: true })).folderAlbum?.path).toBe(target);
+      const restarted = setup(StorageTemplateService);
+      restarted.sut.onConfigInit({ newConfig: defaults });
+      for (const id of [motion.id, still.id, trash.id]) {
+        await expect(restarted.sut.handleMigrationSingle({ id, folderAssociation: true })).resolves.toBe(
+          JobStatus.Success,
+        );
+      }
+      for (const [filename, data] of [
+        [join(target, 'photo.jpg'), bytes],
+        [join(target, 'photo.jpg.xmp'), sidecarBytes],
+        [join(target, 'photo.mov'), motionBytes],
+        [join(target, 'trash.jpg'), bytes],
+      ] as const) {
+        expect(await readFile(filename)).toEqual(data);
+        expect((await stat(filename)).mtimeMs).toBe(mtime.getTime());
+      }
+      expect((await assets.getById(still.id))?.originalPath).toBe(join(target, 'photo.jpg'));
+      expect((await assets.getById(motion.id))?.originalPath).toBe(join(target, 'photo.mov'));
+      expect((await assets.getById(trash.id))?.folderAlbumId).toBe(album.id);
+      expect((await assets.getById(trash.id))?.deletedAt).not.toBeNull();
+      await assets.update({ id: trash.id, deletedAt: null });
+      await expect(restarted.sut.handleMigrationSingle({ id: trash.id })).resolves.toBe(JobStatus.Success);
+      expect((await assets.getById(trash.id))?.originalPath).toBe(join(target, 'trash.jpg'));
+      expect(
+        await database
+          .selectFrom('move_history')
+          .select('id')
+          .where('entityId', 'in', [still.id, motion.id, trash.id])
+          .execute(),
+      ).toEqual([]);
+    },
+  );
+
   it('lays out an existing asset, accepts late association, keeps first binding across album edits and worker restart', async () => {
     const { sut: albums, ctx } = setup(AlbumService);
     const { user } = await ctx.newUser();

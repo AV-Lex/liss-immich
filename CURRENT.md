@@ -2,7 +2,7 @@
 
 RECORDED_DATE = EVENT_DATE = 2026-11-03
 ASSIGNMENT_ID = liss-immich-development
-STATE = D1_INSTALLED_NATIVE / WAIT_INTERACTIVE_VERIFICATION
+STATE = D1_INSTALLED_NATIVE / FOLLOWUP_16_IN_PROGRESS
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
@@ -49,11 +49,17 @@ does not establish installed Russian UI behavior. Native packaging/update and
 live UI read-back remain operator-owned. The accepted installed implementation
 and artifact identities below remain unchanged.
 
-Next development pickup: [#16](https://github.com/AV-Lex/liss-immich/issues/16),
+The active development task is [#16](https://github.com/AV-Lex/liss-immich/issues/16),
 the agreed readable physical names, folder markers and relative card path labels,
-including a bounded recoverable transition for an existing D1 directory.
-Localization does not wait for that task. No maintainer finish decision has been
-given; the assignment remains active through agreed fixes and installed checks.
+including a bounded recoverable transition for an explicitly selected existing D1
+directory. Branch `feat/folder-names-16` starts from `liss` at
+`72da94c01db610c261213396f58772c6a29245f0`; the exact source/check/review result
+belongs to that task thread. The transition reuses the existing binding target,
+queue and move history; no bulk renaming or new schema migration is assigned.
+Native packaging/update and installed transition/UI checks remain operator-owned.
+Localization source from #17 is already integrated at that base. No maintainer
+finish decision has been given; the assignment remains active through agreed
+fixes and installed checks.
 
 The [2026-11-02 disposable native qualification checkpoint](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6575973972)
 records operator-reported PASS for additive migration/default-off, existing-member

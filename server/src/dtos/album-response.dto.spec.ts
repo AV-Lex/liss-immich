@@ -1,4 +1,5 @@
 import { mapAlbum } from 'src/dtos/album.dto.js';
+import { StorageCore } from 'src/cores/storage.core.js';
 import { AlbumFactory } from 'test/factories/album.factory.js';
 import { getForAlbum } from 'test/mappers.js';
 
@@ -19,5 +20,24 @@ describe('mapAlbum', () => {
     const dto = mapAlbum(getForAlbum(AlbumFactory.create()));
     expect(dto.startDate).toBeUndefined();
     expect(dto.endDate).toBeUndefined();
+  });
+
+  it.each([null, 'custom-owner-label'])(
+    'maps the actual bound folder relative to its owner root (%s)',
+    (storageLabel) => {
+      StorageCore.setMediaLocation('/synthetic');
+      const album = getForAlbum(AlbumFactory.create());
+      const ownerId = 'owner';
+      const path = `/synthetic/library/${storageLabel || ownerId}/folder-albums/Trip (2)`;
+      const dto = mapAlbum({ ...album, folderAlbum: { enabled: false, ownerId, storageLabel, path } });
+      expect(dto.folderAlbum).toEqual({ enabled: false, path, relativePath: 'folder-albums/Trip (2)' });
+    },
+  );
+
+  it('never represents an outside-root binding as a home-relative path', () => {
+    StorageCore.setMediaLocation('/synthetic');
+    const album = getForAlbum(AlbumFactory.create());
+    const dto = mapAlbum({ ...album, folderAlbum: { enabled: true, ownerId: 'owner', path: '/other-root/Trip' } });
+    expect(dto.folderAlbum).toEqual({ enabled: true, path: '/other-root/Trip' });
   });
 });

@@ -1,8 +1,10 @@
 import { ShallowDehydrateObject } from 'kysely';
 import { createZodDto } from 'nestjs-zod';
+import path from 'node:path';
 import z from 'zod';
 import type { MaybeDehydrated } from 'src/types.js';
 import { AlbumUser, AuthSharedLink } from 'src/database.js';
+import { StorageCore } from 'src/cores/storage.core.js';
 import { HistoryBuilder } from 'src/decorators.js';
 import { BulkIdErrorReasonSchema } from 'src/dtos/asset-ids.response.dto.js';
 import { MapAsset } from 'src/dtos/asset-response.dto.js';
@@ -76,6 +78,10 @@ const UpdateAlbumSchema = z
       .boolean()
       .optional()
       .describe('Owner opt-in to first physical placement; existing bindings never move on unmark'),
+    migrateFolderName: z
+      .literal(true)
+      .optional()
+      .describe('Owner-only explicit transition of this existing UUID directory to a readable name; repeat to replay'),
     // TODO: drop the empty-string-to-null transform in v4 (clients should send null)
     description: z
       .string()
@@ -140,7 +146,16 @@ const ContributorCountResponseSchema = z
   })
   .meta({ id: 'ContributorCountResponseDto' });
 
-const FolderAlbumSchema = z.object({ enabled: z.boolean(), path: z.string() }).meta({ id: 'FolderAlbumResponseDto' });
+const FolderAlbumSchema = z
+  .object({
+    enabled: z.boolean(),
+    path: z.string(),
+    relativePath: z
+      .string()
+      .optional()
+      .describe('Display path relative to the owner library root; not a filesystem input'),
+  })
+  .meta({ id: 'FolderAlbumResponseDto' });
 
 export const AlbumResponseSchema = z
   .object({
@@ -223,7 +238,7 @@ export class AlbumResponseDto extends createZodDto(AlbumResponseSchema) {}
 class AlbumUserResponseDto extends createZodDto(AlbumUserResponseSchema) {}
 
 export type MapAlbumDto = {
-  folderAlbum?: { enabled: boolean; path: string } | null;
+  folderAlbum?: { enabled: boolean; path: string; ownerId?: string; storageLabel?: string | null } | null;
   albumUsers?: AlbumUser[];
   assets?: ShallowDehydrateObject<MapAsset>[];
   sharedLinks?: ShallowDehydrateObject<AuthSharedLink>[];
@@ -252,6 +267,18 @@ export const mapAlbum = (entity: MaybeDehydrated<MapAlbumDto>): AlbumResponseDto
 
   const assets = entity.assets || [];
 
+  const folder = entity.folderAlbum;
+  const relativePath = folder?.ownerId
+    ? path.relative(
+        StorageCore.getLibraryFolder({ id: folder.ownerId, storageLabel: folder.storageLabel ?? null }),
+        folder.path,
+      )
+    : undefined;
+  const safeRelativePath =
+    relativePath && !path.isAbsolute(relativePath) && relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`)
+      ? relativePath.split(path.sep).join('/')
+      : undefined;
+
   const hasSharedLink = !!entity.sharedLinks && entity.sharedLinks.length > 0;
   const hasSharedUser = albumUsers.length > 1;
 
@@ -263,7 +290,13 @@ export const mapAlbum = (entity: MaybeDehydrated<MapAlbumDto>): AlbumResponseDto
   }
 
   return {
-    ...(entity.folderAlbum && { folderAlbum: { enabled: entity.folderAlbum.enabled, path: entity.folderAlbum.path } }),
+    ...(folder && {
+      folderAlbum: {
+        enabled: folder.enabled,
+        path: folder.path,
+        ...(safeRelativePath && { relativePath: safeRelativePath }),
+      },
+    }),
     albumName: entity.albumName,
     // TODO: return null instead of '' in v4
     description: entity.description ?? '',

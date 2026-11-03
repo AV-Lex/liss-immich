@@ -6,9 +6,12 @@ additions. Ordinary albums keep their existing many-to-many behavior. Existing
 mobile and CLI uploads continue to use the ordinary upload and album Add APIs.
 
 Managed originals owned by the album owner go into
-`library/<user-root>/folder-albums/<readable-name>--<album-UUID>/`, with readable
-original basenames and the existing numeric collision suffixes. The UUID keeps
-albums with equal or similarly sanitized names separate. Sidecars use the
+`library/<user-root>/folder-albums/<readable-name>/`, with readable original
+basenames and the existing file collision suffixes. Equal or similarly sanitized
+album names receive readable directory suffixes such as `Camera (2)`. The selected
+directory is reserved in the existing folder binding, including disabled and
+deleted-album bindings; existing filesystem entries and outstanding move-history
+directories are excluded. Sidecars use the
 original's destination plus `.xmp`; linked motion files use the still's folder.
 External assets and embedded Android motion files retain upstream behavior.
 
@@ -17,7 +20,17 @@ album, removing membership, renaming an album, stopping new assignments, or
 deleting the logical album does not move or delete its original. The folder's
 name is fixed when enabled; renaming the display name does not rename files.
 Re-enabling the same album reuses its directory. Account and asset deletion still
-follow upstream behavior.
+follow upstream behavior. Existing UUID-suffixed D1 directories stay in place
+until an owner explicitly requests the bounded transition described below.
+
+The album table, recent albums in the sidebar and card covers show the same
+folder marker for a retained binding. Its accessible label distinguishes enabled
+placement from stopped new assignments. Ordinary logical albums have no marker.
+Cards also show a linked `~/folder-albums/<name>` label beneath the album title,
+relative to the owner's existing library root. `~` is display shorthand only;
+links use the real path. Folder View and its breadcrumbs keep their existing
+behavior. If the saved path is outside the current owner root, the shorthand is
+omitted rather than guessing a root.
 
 An unassigned asset belonging to several enabled folder albums is skipped and
 logged as a placement conflict. No album is chosen by creation date. Remove the
@@ -30,13 +43,76 @@ Folder placement works independently of the stock storage-template enable flag.
 Unassigned assets keep stock behavior. Repeated stock single/full jobs preserve
 an existing folder assignment. The full job also retries incomplete folder moves.
 
+## One existing D1 directory: explicit readable-name transition
+
+This is an owner-selected transition of one existing binding, not a bulk rename
+or a change to ordinary album rename. It uses the same asset IDs, album ID,
+first-folder binding, job queue, database lock and recoverable per-file moves.
+No additional schema migration is required by this follow-up.
+
+The operator first stages the accepted native server/web release together using
+the contract below, verifies the existing migration ledger, and retains a fresh
+matching database/media/configuration/queue recovery set. Qualify the transition
+on a disposable synthetic binding before the selected installed test album.
+Keep the old source/release and evidence until installed verification and any
+agreed fixes are complete.
+
+1. Read the selected owner's album and retain its ID, folder binding/enabled
+   state, current path, all bound asset IDs and each original/sidecar/motion path.
+   Include bound assets removed from logical membership, hidden motion companions
+   and trashed bound originals. Record bytes/hash and filesystem mtime; retain
+   unresolved move history and its files. This is the bounded inventory to compare
+   after completion, not permission to opt in another real-library album.
+2. As that album's owner, send `PUT /api/albums/<album-ID>` with JSON
+   `{"migrateFolderName": true}` using the existing authenticated API route.
+   Supply no `isFolderAlbum` field in the same request. This changes a legacy
+   directory ending in `--<this-album-UUID>` to an allocated readable destination;
+   it does not enable a disabled binding. Ordinary update clients omit this field.
+   The returned absolute path is the reserved destination during partial progress,
+   not proof that every file is already there. A readable destination cannot have
+   the legacy suffix shape, so repeating the request preserves the chosen path.
+3. Let the existing storage jobs finish. The request queues bound assets even if
+   they are no longer logical members, hidden or trashed; current members are
+   additionally eligible only while the binding is enabled. Each asset finishes
+   any retained move intent before moving toward the reserved folder. Originals,
+   sidecars and motion companions remain separately recoverable, not atomic.
+4. If delivery, queueing, restart or movement fails, first reread the same album,
+   actual database paths, files and move history. Repeat the same one-album
+   request to requeue against its retained target. A crash between target
+   reservation and queueing requires this explicit replay; no new automatic retry
+   guarantee is claimed. Preserve conflicting files/history and investigate
+   logged failures; never repair with a filesystem-only rename, overwrite,
+   manual database path edit or blind restoration of an older database alone.
+5. Check every inventoried asset's stable IDs/binding, readable original and
+   companion paths, sidecar alignment, downloaded/disk bytes and hashes, and
+   filesystem mtime. Verify no outstanding history for those files and no leftover
+   source copies; an empty old directory is harmless. Repeat the request once and
+   confirm the same reservation and no further movement. Check duplicate and
+   similarly sanitized album names on synthetic data remain distinct. Existing
+   Date/utimes replay precision limits below still apply; a matching snapshot must
+   preserve its exact filesystem timestamps.
+6. In the served web UI, verify the folder marker beside the table name, in the
+   sidebar and on the card cover, including stopped-new-assignment status. Check
+   the path label beneath the card title, its actual Folder View destination,
+   ordinary album navigation/menus and unchanged Folder View breadcrumbs. Return
+   the exact installed source/artifact identity, bounded transition result and UI
+   limits to [#16](https://github.com/AV-Lex/liss-immich/issues/16) and D1 #2.
+
+Recovery uses the matching snapshot/release procedures below. Restoring only the
+old executable does not restore a previous physical layout: the binding target
+and recorded asset paths are database state. Preserve a matching post-transition
+recovery set before any old-baseline rollback. Source acceptance and synthetic
+checks do not establish installed transition or live UI success.
+
 ## Build and upgrade
 
-The accepted D1 implementation is
+The original accepted D1 implementation is
 [`6c58b0370eb3fd86cf8ead45fd9e9f521f60de93`](https://github.com/AV-Lex/liss-immich/commit/6c58b0370eb3fd86cf8ead45fd9e9f521f60de93),
 integrated at `cb01a95f0a95da1e28169e4afb596a93a4dd7faf` with the identical
-source tree. It remains based on Immich 3.3.5. Later documentation commits do
-not change that implementation receipt.
+source tree. It remains based on Immich 3.3.5. The readable-name and album-marker
+follow-up is tracked in [#16](https://github.com/AV-Lex/liss-immich/issues/16); use
+its exact accepted source receipt for the combined build. Historical D1 checks
+do not establish installed behavior of that follow-up.
 
 Docker/Compose below is a generic packaging and synthetic-test route. **Lex HOME
 uses an existing native installation, without Docker or ML**, with a separate
@@ -67,7 +143,8 @@ Java/OpenAPI tools are needed for interface regeneration, not server startup.
 The accepted generated interfaces are already committed. From the checkout root:
 
 ```sh
-git checkout --detach 6c58b0370eb3fd86cf8ead45fd9e9f521f60de93
+: "${LISS_SOURCE_SHA:?set the full accepted source SHA from the task result}"
+git checkout --detach "$LISS_SOURCE_SHA"
 pnpm install --frozen-lockfile
 mise run //:plugins
 pnpm --filter immich build

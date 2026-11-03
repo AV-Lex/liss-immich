@@ -1,7 +1,6 @@
 <script lang="ts">
   import AlbumCard from '$lib/components/album-page/AlbumCard.svelte';
   import Portal from '$lib/elements/Portal.svelte';
-  import { Route } from '$lib/route';
   import { getAlbumActions } from '$lib/services/album.service';
   import { albumViewSettings } from '$lib/stores/preferences.store';
   import { type AlbumGroup, isAlbumGroupCollapsed, toggleAlbumGroupCollapsing } from '$lib/utils/album-utils';
@@ -68,9 +67,10 @@
       {#each albums as album, index (album.id)}
         {@const { Edit, Share, Download, Leave, Delete } = getAlbumActions($t, album)}
         {@const items = [Edit, Share, Download, Leave, Delete]}
-        <a
-          href={Route.viewAlbum(album)}
+        <div
           class="h-fit"
+          role="group"
+          aria-label={album.albumName || $t('unnamed_album')}
           animate:flip={{ duration: 400 }}
           oncontextmenu={(event) => oncontextmenu(event, items)}
         >
@@ -82,7 +82,7 @@
             preload={index < 20}
             contextMenuItems={items}
           />
-        </a>
+        </div>
       {/each}
     </div>
   {/if}
