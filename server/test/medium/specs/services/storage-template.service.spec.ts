@@ -143,18 +143,21 @@ describe('folder album DB/jobs and real files', () => {
     );
   });
 
-  it.each([AssetPathType.Original, AssetFileType.Sidecar])(
-    'replays a selected legacy directory with removed still, hidden motion and trash after interruption at %s',
-    async (interrupt) => {
+  it.each([
+    [false, AssetPathType.Original],
+    [false, AssetFileType.Sidecar],
+    [true, AssetPathType.Original],
+    [true, AssetFileType.Sidecar],
+  ] as const)(
+    'replays a selected legacy directory with enabled=%s, removed still, hidden motion and trash after interruption at %s',
+    async (enabled, interrupt) => {
       const { sut: albums, ctx } = setup(AlbumService);
       const { user } = await ctx.newUser();
       const auth = factory.auth({ user });
       const { album } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Trip' });
       const oldFolder = join(StorageCore.getLibraryFolder(user), 'folder-albums', `Trip--${album.id}`);
       await mkdir(oldFolder, { recursive: true });
-      await ctx
-        .get(AlbumRepository)
-        .setFolderAlbum({ id: album.id, ownerId: user.id, path: oldFolder, enabled: false });
+      await ctx.get(AlbumRepository).setFolderAlbum({ id: album.id, ownerId: user.id, path: oldFolder, enabled });
       const sidecarBytes = Buffer.from('<xmp>transition</xmp>');
       const motionBytes = Buffer.from('transition motion');
       const entries = [
@@ -162,6 +165,7 @@ describe('folder album DB/jobs and real files', () => {
         [join(oldFolder, 'photo.jpg.xmp'), sidecarBytes],
         [join(oldFolder, 'photo.mov'), motionBytes],
         [join(oldFolder, 'trash.jpg'), bytes],
+        [join(directory, 'new-member.jpg'), bytes],
       ] as const;
       for (const [filename, data] of entries) {
         await writeFile(filename, data);
@@ -193,6 +197,12 @@ describe('folder album DB/jobs and real files', () => {
         deletedAt: new Date(),
       });
       const { asset: unboundTrash } = await ctx.newAsset({ ownerId: user.id, deletedAt: new Date() });
+      const { asset: newMember } = await ctx.newAsset({
+        ownerId: user.id,
+        originalPath: entries[4][0],
+        originalFileName: 'new-member.jpg',
+        checksum,
+      });
       const assets = ctx.get(AssetRepository);
       await assets.upsertFile({ assetId: still.id, type: AssetFileType.Sidecar, path: entries[1][0] });
       for (const [id, size] of [
@@ -200,13 +210,14 @@ describe('folder album DB/jobs and real files', () => {
         [motion.id, motionBytes.length],
         [trash.id, bytes.length],
         [unboundTrash.id, bytes.length],
+        [newMember.id, bytes.length],
       ] as const) {
         await assets.upsertExif({ lockedPropertiesBehavior: 'override', exif: { assetId: id, fileSizeInByte: size } });
         await assets.upsertJobStatus({ assetId: id, metadataExtractedAt: new Date() });
       }
-      // Bound files need not retain logical membership; the disabled binding
-      // still selects all of them and does not opt new members in.
-      await ctx.get(AlbumRepository).addAssetIds(album.id, [still.id]);
+      // Bound files need not retain logical membership; either enabled state
+      // still selects all of them and retains its new-assignment policy.
+      await ctx.get(AlbumRepository).addAssetIds(album.id, [still.id, newMember.id]);
       await albums.removeAssets(auth, album.id, { ids: [still.id] });
       const moves = ctx.get(MoveRepository);
       const retainedTarget = join(oldFolder, 'retained.jpg');
@@ -224,13 +235,13 @@ describe('folder album DB/jobs and real files', () => {
       });
       const response = await albums.update(auth, album.id, { migrateFolderName: true });
       const target = join(StorageCore.getLibraryFolder(user), 'folder-albums', 'Trip');
-      expect(response.folderAlbum).toEqual({ enabled: false, path: target, relativePath: 'folder-albums/Trip' });
+      expect(response.folderAlbum).toEqual({ enabled, path: target, relativePath: 'folder-albums/Trip' });
       expect(
         ctx
           .getMock(JobRepository)
           .queue.mock.calls.map(([job]) => (job.data && 'id' in job.data ? job.data.id : undefined))
           .sort((left, right) => (left ?? '').localeCompare(right ?? '')),
-      ).toEqual([still.id, motion.id, trash.id].sort());
+      ).toEqual([still.id, motion.id, trash.id, ...(enabled ? [newMember.id] : [])].sort());
       expect(
         await ctx.get(AssetJobRepository).getForStorageTemplateJob(unboundTrash.id, { includeTrashedBound: true }),
       ).toBeUndefined();
@@ -254,7 +265,7 @@ describe('folder album DB/jobs and real files', () => {
       expect((await albums.update(auth, album.id, { migrateFolderName: true })).folderAlbum?.path).toBe(target);
       const restarted = setup(StorageTemplateService);
       restarted.sut.onConfigInit({ newConfig: defaults });
-      for (const id of [motion.id, still.id, trash.id]) {
+      for (const id of [motion.id, still.id, trash.id, ...(enabled ? [newMember.id] : [])]) {
         await expect(restarted.sut.handleMigrationSingle({ id, folderAssociation: true })).resolves.toBe(
           JobStatus.Success,
         );
@@ -268,6 +279,11 @@ describe('folder album DB/jobs and real files', () => {
         expect(await readFile(filename)).toEqual(data);
         expect((await stat(filename)).mtimeMs).toBe(mtime.getTime());
       }
+      const memberPath = enabled ? join(target, 'new-member.jpg') : entries[4][0];
+      expect(await readFile(memberPath)).toEqual(bytes);
+      expect((await stat(memberPath)).mtimeMs).toBe(mtime.getTime());
+      expect((await assets.getById(newMember.id))?.originalPath).toBe(memberPath);
+      expect((await assets.getById(newMember.id))?.folderAlbumId).toBe(enabled ? album.id : null);
       expect((await assets.getById(still.id))?.originalPath).toBe(join(target, 'photo.jpg'));
       expect((await assets.getById(motion.id))?.originalPath).toBe(join(target, 'photo.mov'));
       expect((await assets.getById(trash.id))?.folderAlbumId).toBe(album.id);
