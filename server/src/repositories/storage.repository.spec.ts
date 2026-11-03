@@ -1,4 +1,4 @@
-import mockfs from 'mock-fs';
+import mockfs, { symlink } from 'mock-fs';
 import { vitest } from 'vitest';
 import { CrawlOptionsDto } from 'src/dtos/library.dto.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
@@ -217,7 +217,7 @@ describe(StorageRepository.name, () => {
   });
 
   it('counts dangling symlinks as occupied folder names and only treats ENOENT as absent', async () => {
-    mockfs({ '/reserved': mockfs.symlink({ path: '/missing' }), '/file': 'existing file' });
+    mockfs({ '/reserved': symlink({ path: '/missing' }), '/file': 'existing file' });
     await expect(sut.pathExists('/reserved')).resolves.toBe(true);
     await expect(sut.pathExists('/absent')).resolves.toBe(false);
     await expect(sut.pathExists('/file/child')).rejects.toMatchObject({ code: 'ENOTDIR' });

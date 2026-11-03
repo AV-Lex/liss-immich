@@ -1,5 +1,5 @@
-import { mapAlbum } from 'src/dtos/album.dto.js';
 import { StorageCore } from 'src/cores/storage.core.js';
+import { mapAlbum } from 'src/dtos/album.dto.js';
 import { AlbumFactory } from 'test/factories/album.factory.js';
 import { getForAlbum } from 'test/mappers.js';
 

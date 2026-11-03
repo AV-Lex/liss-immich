@@ -135,7 +135,7 @@ describe('folder album DB/jobs and real files', () => {
     expect(next.folderAlbum?.path).toBe(join(root, 'TripOne (4)'));
     const retry = await albums.update(auth, second.id, { albumName: 'Changed', isFolderAlbum: true });
     expect(retry.folderAlbum?.path).toBe(next.folderAlbum?.path);
-    const { album: accent } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Cafe\u0301' });
+    const { album: accent } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Cafe\u{0301}' });
     const { album: normalized } = await ctx.newAlbum({ ownerId: user.id, albumName: 'Café' });
     expect((await albums.update(auth, accent.id, { isFolderAlbum: true })).folderAlbum?.path).toBe(join(root, 'Café'));
     expect((await albums.update(auth, normalized.id, { isFolderAlbum: true })).folderAlbum?.path).toBe(
@@ -228,7 +228,7 @@ describe('folder album DB/jobs and real files', () => {
         ctx
           .getMock(JobRepository)
           .queue.mock.calls.map(([job]) => (job.data && 'id' in job.data ? job.data.id : undefined))
-          .sort(),
+          .sort((left, right) => (left ?? '').localeCompare(right ?? '')),
       ).toEqual([still.id, motion.id, trash.id].sort());
       expect(
         await ctx.get(AssetJobRepository).getForStorageTemplateJob(unboundTrash.id, { includeTrashedBound: true }),
