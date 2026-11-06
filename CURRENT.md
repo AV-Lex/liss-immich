@@ -1,6 +1,6 @@
 # Liss Immich — CURRENT
 
-RECORDED_DATE = EVENT_DATE = 2026-11-03
+RECORDED_DATE = EVENT_DATE = 2026-11-06
 ASSIGNMENT_ID = liss-immich-development
 STATE = D1_INSTALLED_NATIVE / FOLLOWUP_16_SOURCE_ACCEPTED / WAIT_OPERATOR_UPDATE
 INTEGRATION_BRANCH = liss
@@ -83,6 +83,15 @@ previous D1 release until that return; source acceptance does not establish an
 installed update. Phone upload/association/later-upload, full-image opening and
 the maintainer finish decision remain separate open steps. The assignment stays
 active through those checks and any agreed fixes; it is not PARKED.
+
+The [2026-11-06 operator preparation return](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-6691503145)
+identified an HTTP-method typo in the selected-binding transition guide. Step 2
+now correctly specifies `PATCH /api/albums/<album-ID>`, matching the accepted
+controller and OpenAPI contract. Accepted implementation/build source remains
+`d0f9b2b9fcee587a05ea91e209c4d813132b6749`; this documentation correction
+changes no runtime behavior. The operator reports build/staging and isolated
+qualification in progress, with no production transition or installed/UI success
+claimed. The next owner and installed-verification dependencies above remain.
 
 The [2026-11-02 disposable native qualification checkpoint](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6575973972)
 records operator-reported PASS for additive migration/default-off, existing-member
