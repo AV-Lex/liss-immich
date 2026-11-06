@@ -69,7 +69,7 @@ agreed fixes are complete.
    and trashed bound originals. Record bytes/hash and filesystem mtime; retain
    unresolved move history and its files. This is the bounded inventory to compare
    after completion, not permission to opt in another real-library album.
-2. As that album's owner, send `PUT /api/albums/<album-ID>` with JSON
+2. As that album's owner, send `PATCH /api/albums/<album-ID>` with JSON
    `{"migrateFolderName": true}` using the existing authenticated API route.
    Supply no `isFolderAlbum` field in the same request. This changes a legacy
    directory ending in `--<this-album-UUID>` to an allocated readable destination;
