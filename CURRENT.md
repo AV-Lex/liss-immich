@@ -89,9 +89,27 @@ identified an HTTP-method typo in the selected-binding transition guide. Step 2
 now correctly specifies `PATCH /api/albums/<album-ID>`, matching the accepted
 controller and OpenAPI contract. Accepted implementation/build source remains
 `d0f9b2b9fcee587a05ea91e209c4d813132b6749`; this documentation correction
-changes no runtime behavior. The operator reports build/staging and isolated
-qualification in progress, with no production transition or installed/UI success
-claimed. The next owner and installed-verification dependencies above remain.
+changes no runtime behavior.
+
+The [2026-11-06 staged native candidate return](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-6692161240)
+reports a persisted combined build and inactive stage for that accepted source,
+including #17. The operator reports 1,771 exact source-blob checks, verification
+of all 34,736 artifact entries and byte-identical compiled migrations against the
+installed D1 release, plus passing offline dependency checks. Candidate archive
+SHA256: `10e9b85804f4c0e8f5b3303b015bc8d685583ab4945179ada5d744169ee9598d`.
+These are operator-reported build/staging results; bounded native transition
+qualification, the installed switch, selected owner PATCH and live UI checks
+remain pending. The installed identity below remains unchanged.
+
+The [operator's maintainer scope clarification](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-6693074563)
+waives mandatory full backup and a separate restore drill for this one update of
+the current reloadable test library. For this update, that exception supersedes
+the matching-recovery-set prerequisite above. Preserve the old release/configuration;
+verify the ledger, outstanding moves, selected transition and bytes/hash/mtime.
+No backup/recovery PASS is claimed. The normal product/non-test-library recovery
+contract remains unchanged, and no deletion or reset is authorized. The assigned
+operator owns the pending native qualification/update/transition and live checks;
+phone behavior, full-image opening and maintainer finish remain open.
 
 The [2026-11-02 disposable native qualification checkpoint](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6575973972)
 records operator-reported PASS for additive migration/default-off, existing-member
