@@ -1,8 +1,8 @@
 # Liss Immich — CURRENT
 
-RECORDED_DATE = EVENT_DATE = 2026-11-06
+RECORDED_DATE = EVENT_DATE = 2026-11-10
 ASSIGNMENT_ID = liss-immich-development
-STATE = D1_INSTALLED_NATIVE / FOLLOWUP_16_SOURCE_ACCEPTED / WAIT_OPERATOR_UPDATE
+STATE = FOLLOWUP_16_INSTALLED_NATIVE / WAIT_OWNER_TRANSITION_AND_LIVE_CHECKS
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
@@ -46,8 +46,8 @@ The maintainer requested concrete D1 fixes, [split into two tasks](https://githu
 [#17](https://github.com/AV-Lex/liss-immich/issues/17) adds Russian translations
 for the five existing folder-album strings in `i18n/ru.json`; its source result
 does not establish installed Russian UI behavior. Native packaging/update and
-live UI read-back remain operator-owned. The accepted installed implementation
-and artifact identities below remain unchanged.
+live UI read-back remain operator-owned. Its strings are included in the combined
+installed follow-up checkpoint below; observed Russian UI acceptance remains pending.
 
 The agreed [#16](https://github.com/AV-Lex/liss-immich/issues/16) follow-up is
 source-accepted through [PR #19](https://github.com/AV-Lex/liss-immich/pull/19),
@@ -74,15 +74,51 @@ The source result records actual CI evidence and remaining tooling limits.
 Case-insensitive filesystem equivalence, arbitrary submillisecond replay and
 real-browser hit testing are not established by the source checks.
 
-Next owner: assigned operator for the combined native package/update, matching
-recovery set, case-sensitive filesystem qualification and one selected existing
-D1 binding transition, then live Russian marker/path/link/menu checks with the
-maintainer. Return sanitized installed identity/results to #16 and #2 (and #17
-for localization read-back). The installed source/artifacts below remain the
-previous D1 release until that return; source acceptance does not establish an
-installed update. Phone upload/association/later-upload, full-image opening and
-the maintainer finish decision remain separate open steps. The assignment stays
-active through those checks and any agreed fixes; it is not PARKED.
+## Installed follow-up checkpoint (2026-11-10)
+
+The development owner read the complete operator report and structured receipt,
+checked their agreement with the [sanitized native return](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-6772996463)
+and prior staged archive identity, and accepts the qualification/installation
+checkpoint on operator-reported evidence. This is not independent interactive
+behavior acceptance or completion of the selected existing-binding transition.
+
+Installed implementation: **d0f9b2b9fcee587a05ea91e209c4d813132b6749**, including #17.
+Native archive SHA256:
+`10e9b85804f4c0e8f5b3303b015bc8d685583ab4945179ada5d744169ee9598d`;
+manifest SHA256:
+`9d9a29c8972d47ff58c63e90c841ce37d8a985d288cbc9ab3ec0caa2f36cda2a`.
+The operator reports all 34,736 release entries verified, 306 compiled migrations
+identical to the old release and all 102 ledger rows unchanged. No migration ran.
+126 asset identities/paths/checksums and 378 non-marker files retained
+bytes/hash/ownership/mode/nanosecond mtime; six expected startup markers were
+rewritten. Current API/worker, trusted HTTPS, served HTML/entry assets, ML-off and
+stock-templates-off checks passed, with zero outstanding moves. Old release and
+configuration remain retained. The maintainer's one-update test-library exception
+below applies; no new full backup, restore or recovery PASS is claimed.
+
+Bounded native tests passed case-sensitive readable allocation/collisions,
+both enabled states, removed still/hidden motion/bound trash/eligible members,
+interrupted original and sidecar replay, download and stable repeat. Ordinary
+renames preserved exact nanosecond mtime. Both injected replays differed by
+-94 ns, exactly reproduced by the actual Node Date/utimes control on the same
+filesystem while Node mtimeMs stayed unchanged. Arbitrary submillisecond
+preservation and real video decoding remain unproved. Test setup repairs covered
+parent traversal/ownership, quiet psql output and faithful original-before-sidecar
+interruption; no application defect or source patch was established. Failed
+attempts and fixture state remain operator-retained. Do not repeat the completed
+qualification/install or initial D1 migration/revert matrix.
+
+Next owner: maintainer for the one selected owner PATCH under the operator's
+prepared guarded procedure, followed by independent operator read-back of selected
+files, IDs, paths, bytes/hash/mtime and move history. Reservation alone does not
+prove completed placement. Then verify Russian controls/status, enabled/retained
+table/sidebar/card markers, relative folder label, actual Folder View and separate
+cover/title/link/menu clicks. Return sanitized results to #16 and #2, with Russian
+read-back to #17. Phone upload/association/later-upload, full-image opening and the
+maintainer finish decision remain open. The assignment stays active through those
+checks and any agreed fixes; it is not PARKED.
+
+## Earlier operator checkpoints (historical)
 
 The [2026-11-06 operator preparation return](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-6691503145)
 identified an HTTP-method typo in the selected-binding transition guide. Step 2
@@ -99,7 +135,8 @@ installed D1 release, plus passing offline dependency checks. Candidate archive
 SHA256: `10e9b85804f4c0e8f5b3303b015bc8d685583ab4945179ada5d744169ee9598d`.
 These are operator-reported build/staging results; bounded native transition
 qualification, the installed switch, selected owner PATCH and live UI checks
-remain pending. The installed identity below remains unchanged.
+were pending. At that staging checkpoint, the installed identity was still the
+previous D1 release.
 
 The [operator's maintainer scope clarification](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-6693074563)
 waives mandatory full backup and a separate restore drill for this one update of
@@ -135,7 +172,8 @@ and [accepted the native installation checkpoint](https://github.com/AV-Lex/liss
 on operator-reported evidence.
 This is not independent interactive behavior acceptance.
 
-Installed source remains `6c58b0370eb3fd86cf8ead45fd9e9f521f60de93`.
+At the initial D1 checkpoint, installed source was
+`6c58b0370eb3fd86cf8ead45fd9e9f521f60de93`; the 2026-11-10 checkpoint above supersedes it.
 Native archive SHA256:
 `58128ab521a5ccfa0ad1689d014045e486a109eaac5480ca606299aa2de2e3ab`;
 manifest SHA256:
@@ -155,8 +193,9 @@ exercised by the cutover. Production rollback and off-host/VM-loss recovery rema
 unproven. Reuse the completed disposable qualification; do not repeat migration or
 fixtures to fill this dependency. The measured replay precision limit above remains.
 
-Next owner: maintainer for interactive use, with the separately assigned operator
-checking installed paths/data and handling runtime actions. On a small synthetic
+At the initial D1 checkpoint, next owner was the maintainer for interactive use,
+with the separately assigned operator checking installed paths/data and handling
+runtime actions. On a small synthetic
 album verify **Use as folder album**, its confirmation/status/directory link and
 Folder View/file location, then ordinary phone upload followed by normal album
 association and a later upload. Confirm visible results, stable IDs, readable paths,
