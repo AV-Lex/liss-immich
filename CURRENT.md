@@ -1,8 +1,8 @@
 # Liss Immich — CURRENT
 
-RECORDED_DATE = EVENT_DATE = 2026-11-10
+RECORDED_DATE = EVENT_DATE = 2026-11-11
 ASSIGNMENT_ID = liss-immich-development
-STATE = FOLLOWUP_16_INSTALLED_NATIVE / WAIT_OWNER_TRANSITION_AND_LIVE_CHECKS
+STATE = FOLLOWUP_16_OWNER_TRANSITION_VERIFIED / WAIT_REMAINING_LIVE_CHECKS
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
@@ -47,7 +47,8 @@ The maintainer requested concrete D1 fixes, [split into two tasks](https://githu
 for the five existing folder-album strings in `i18n/ru.json`; its source result
 does not establish installed Russian UI behavior. Native packaging/update and
 live UI read-back remain operator-owned. Its strings are included in the combined
-installed follow-up checkpoint below; observed Russian UI acceptance remains pending.
+installed follow-up checkpoint below. The selected installed Russian status is
+confirmed below; the other four strings have no explicit live read-back.
 
 The agreed [#16](https://github.com/AV-Lex/liss-immich/issues/16) follow-up is
 source-accepted through [PR #19](https://github.com/AV-Lex/liss-immich/pull/19),
@@ -108,15 +109,38 @@ interruption; no application defect or source patch was established. Failed
 attempts and fixture state remain operator-retained. Do not repeat the completed
 qualification/install or initial D1 migration/revert matrix.
 
-Next owner: maintainer for the one selected owner PATCH under the operator's
-prepared guarded procedure, followed by independent operator read-back of selected
-files, IDs, paths, bytes/hash/mtime and move history. Reservation alone does not
-prove completed placement. Then verify Russian controls/status, enabled/retained
-table/sidebar/card markers, relative folder label, actual Folder View and separate
-cover/title/link/menu clicks. Return sanitized results to #16 and #2, with Russian
-read-back to #17. Phone upload/association/later-upload, full-image opening and the
-maintainer finish decision remain open. The assignment stays active through those
-checks and any agreed fixes; it is not PARKED.
+## Selected transition and browser return (2026-11-11)
+
+The [selected transition return](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-6793148299)
+reports completion of the one agreed owner PATCH on the installed
+`d0f9b2b9fcee587a05ea91e209c4d813132b6749`. The development owner read the
+operator's corresponding return and compared it with the public report.
+The operator independently verified three original asset identities and album
+memberships, all nine referenced files' bytes/SHA256/nanosecond mtime, absence
+of the old original paths and empty move history. The selected physical folder
+now has a readable name without the UUID suffix. This bounded installed
+transition checkpoint is accepted on operator-reported evidence; do not repeat it.
+
+Lex reported that the selected album's Russian folder status, folder link into
+Folder View and separate card navigation/menu behavior worked. The
+[localization return](https://github.com/AV-Lex/liss-immich/issues/17#issuecomment-6793224878)
+confirms the selected Russian status. This is maintainer-reported browser
+acceptance on one album. It does not explicitly establish all five #17 strings,
+enabled/retained markers in each table/sidebar/card location, the relative card
+label or each individual cover/title/link hit target. No source defect is
+reported, and no code change or runtime action was performed in this assessment.
+
+Next owner: maintainer for the remaining live observations under
+[D1](https://github.com/AV-Lex/liss-immich/issues/2): ordinary phone upload,
+normal album association, a later upload and opening the full images. Confirm
+any still-unreported #16 marker/label/hit-target and #17 wording checks, with
+independent operator integrity read-back under the existing operator assignment.
+Return sanitized results to #2/#16 and wording results to #17; retain raw with
+the operator. Completed installation/qualification/selected transition need no
+repeat. After applicable live checks, ask for and record the maintainer's concrete
+remaining fixes or explicit finish decision. The assignment stays active through
+those checks and any agreed fixes; it is not PARKED. Earlier replay-precision,
+video-decoding and backup/recovery limits remain unchanged.
 
 ## Earlier operator checkpoints (historical)
 
