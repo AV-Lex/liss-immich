@@ -2,7 +2,7 @@
 
 RECORDED_DATE = EVENT_DATE = 2026-11-11
 ASSIGNMENT_ID = liss-immich-development
-STATE = FOLLOWUP_16_OWNER_TRANSITION_VERIFIED / WAIT_REMAINING_LIVE_CHECKS
+STATE = D1_PHONE_AND_FULL_IMAGE_CHECK_VERIFIED / WAIT_MAINTAINER_FOLLOWUP_DECISION
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
@@ -130,17 +130,34 @@ enabled/retained markers in each table/sidebar/card location, the relative card
 label or each individual cover/title/link hit target. No source defect is
 reported, and no code change or runtime action was performed in this assessment.
 
-Next owner: maintainer for the remaining live observations under
-[D1](https://github.com/AV-Lex/liss-immich/issues/2): ordinary phone upload,
-normal album association, a later upload and opening the full images. Confirm
-any still-unreported #16 marker/label/hit-target and #17 wording checks, with
-independent operator integrity read-back under the existing operator assignment.
-Return sanitized results to #2/#16 and wording results to #17; retain raw with
-the operator. Completed installation/qualification/selected transition need no
-repeat. After applicable live checks, ask for and record the maintainer's concrete
-remaining fixes or explicit finish decision. The assignment stays active through
-those checks and any agreed fixes; it is not PARKED. Earlier replay-precision,
-video-decoding and backup/recovery limits remain unchanged.
+## Phone upload and full-image return (2026-11-11)
+
+The development owner read the [phone and later-upload return](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6794860479)
+and its corresponding operator record and accepts this bounded installed-use
+checkpoint on operator- and maintainer-reported evidence. Installed implementation
+remains `d0f9b2b9fcee587a05ea91e209c4d813132b6749`.
+
+Lex reported two separate additions from the phone to the selected enabled folder
+album; membership increased from three to four and then five. The operator
+verified that both new originals retain the same album binding, physically reside
+in its readable directory and match their catalog checksums. Previously checked
+originals retained their identities, paths, bytes and file timestamps, with empty
+move history. Lex confirmed full-size viewing and, for one image, matching pixel
+dimensions between the saved phone image and the server file. This completes the
+requested phone/later-upload and full-image live checkpoint for the selected album.
+It does not establish every device, background-sync scenario or unobserved API
+ordering; no new source defect or code/runtime action is reported here.
+
+Next owner: maintainer to report concrete remaining fixes or explicitly decide
+that this stage is finished, taking account of the still-unreported #16
+marker/relative-label/individual-hit-target observations and four #17 wording
+observations described above. Return any outstanding UI observations to #16,
+wording to #17, and the follow-up/finish decision to #2. The assigned operator
+handles any required integrity read-back under its existing assignment. Completed
+installation, qualification, selected transition and phone/full-image checks need
+no repeat. The assignment remains active through the decision and any agreed
+fixes, including their installation and verification; it is not PARKED. Earlier
+replay-precision, video-decoding and backup/recovery limits remain unchanged.
 
 ## Earlier operator checkpoints (historical)
 
