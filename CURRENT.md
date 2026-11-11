@@ -148,14 +148,23 @@ requested phone/later-upload and full-image live checkpoint for the selected alb
 It does not establish every device, background-sync scenario or unobserved API
 ordering; no new source defect or code/runtime action is reported here.
 
+The [final operator return](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6796210246)
+closes the operator's D1 task with no remaining operator action for this release.
+The development owner read the corresponding final receipt and confirmed the
+operator task is closed. It summarizes the already accepted installation,
+selected transition and phone/full-image checkpoints; it adds no new live-test
+coverage or maintainer finish decision. The operator also returned the bounded
+[UI observations to #16](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-6796210646)
+and [localization observations to #17](https://github.com/AV-Lex/liss-immich/issues/17#issuecomment-6796211020).
+
 Next owner: maintainer to report concrete remaining fixes or explicitly decide
 that this stage is finished, taking account of the still-unreported #16
 marker/relative-label/individual-hit-target observations and four #17 wording
 observations described above. Return any outstanding UI observations to #16,
-wording to #17, and the follow-up/finish decision to #2. The assigned operator
-handles any required integrity read-back under its existing assignment. Completed
-installation, qualification, selected transition and phone/full-image checks need
-no repeat. The assignment remains active through the decision and any agreed
+wording to #17, and the follow-up/finish decision to #2. Any newly agreed runtime
+or integrity action needs a covering operator assignment; none is pending now.
+Completed installation, qualification, selected transition and phone/full-image
+checks need no repeat. The assignment remains active through the decision and any agreed
 fixes, including their installation and verification; it is not PARKED. Earlier
 replay-precision, video-decoding and backup/recovery limits remain unchanged.
 
