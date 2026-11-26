@@ -127,7 +127,7 @@
       if (updated.id !== album.id) {
         return;
       }
-      data.album = updated;
+      album = updated;
     }
 
     // invalidating during navigation causes an infinite page load
