@@ -2,37 +2,50 @@
 
 RECORDED_DATE = EVENT_DATE = 2026-11-26
 ASSIGNMENT_ID = liss-immich-development
-STATE = CONCRETE_MAINTAINER_FIXES_IN_PROGRESS
+STATE = WAIT_OPERATOR_INSTALL_AND_MAINTAINER_CHECK
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
 
 ## Current maintainer follow-up (2026-11-26)
 
-The [fresh maintainer return](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-7201232457)
-resumes concrete source work within this finite D1 assignment. The
-[UI request in #16](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-7201231879)
-covers visually distinct retained markers, the shared owner toggle in both
-card/detail menus, confirmation wording and actual response-state refresh.
-Russian wording is included with this change and returned to #17.
-[#26](https://github.com/AV-Lex/liss-immich/issues/26) adds a visible Liss release
-label while preserving base/API/client versions and stock upstream update checking.
+The [explicit UI/wording request](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-7201231879)
+and [visible Liss version request #26](https://github.com/AV-Lex/liss-immich/issues/26)
+are delivered together through [PR #27](https://github.com/AV-Lex/liss-immich/pull/27),
+targeting `liss`. Exact combined implementation/test candidate:
+[`3aa130a8942d9c127c0895ddafd86903215b545c`](https://github.com/AV-Lex/liss-immich/commit/3aa130a8942d9c127c0895ddafd86903215b545c).
+Final documentation-only identity and the accepted source/check receipt are
+returned in the [single D1 operator handoff in #2](https://github.com/AV-Lex/liss-immich/issues/2).
 
-The selected cover badge, relative card path and separate album/folder navigation
-are now [maintainer-confirmed](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-7201048821).
-Enabled markers in the table/sidebar and absence on ordinary albums are also
-[confirmed](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-7201096441).
-Retained UX and the original confirmation wording were not accepted; the explicit
-fix request above supersedes the earlier wait-only next step. No previously
-accepted installation, transition, phone or full-image check is reopened.
+Album and card menus share the owner-only placement action and neutral EN/RU
+confirmations. Retained bindings use a visibly different existing folder-off
+icon in cards, tables and the sidebar. Successful updates publish the actual
+response through the existing album event; cancellation/error does not publish
+success. Independent testing caught an initial detail-page nested-data mutation
+that left immediate status stale. The correction restores the existing reactive
+album assignment; a real-page raw-PageData regression covers both transitions,
+refusal, error, authoritative response and non-owner exclusions.
 
-Development owns the source fixes and targeted verification. After acceptance,
-return [one combined operator handoff in #2](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-7201324451)
-with exact sources, reproducible native build/update/check/rollback instructions
-and limits; #16/#26 link to that return. InfraLiss HOME already has the covering
-operator task and owns matching installation and maintainer read-back. No duplicate
-operator task is needed. Source readiness does not establish installed behavior.
-The assignment remains active through those fixes, installation, verification
-and the maintainer's explicit finish decision; no PARKED/removal is authorized.
+Independent source behavior and PRE_DESIGN simplicity checks passed. Targeted
+native UI checks, TypeScript/Svelte checks and the web build are recorded in #2,
+with exact revisions and remaining CI/resource limits. No server, storage,
+schema, migration, SDK, OpenAPI, mobile or base package version changed.
+`IMMICH_BUILD='Liss r2'` uses existing runtime metadata for the normal visible
+`v3.3.5 · Liss r2` label; the base/client version and upstream update-checking
+mechanism remain unchanged. The [native release guide](docs/docs/features/folder-albums.md#visible-liss-build-identity)
+binds the label to matched artifacts/source and restores metadata on rollback.
+This UI update does not repeat the completed D1 migration or readable-name transition.
+
+Next owner: **InfraLiss HOME**, using the already covering operator task per the
+[maintainer's handoff instruction](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-7201324451).
+The single #2 handoff supplies accepted exact source, reproducible native
+build/update/check/rollback instructions and limits; #16/#17/#26 return to it.
+The operator owns matched installation and source/artifact/metadata read-back;
+the maintainer owns actual toggle/marker/wording/version acceptance and the
+remaining finish decision. Source readiness does not establish installed behavior.
+No duplicate operator task is needed. No previously accepted installation,
+transition, phone or full-image check is reopened. The assignment remains in
+rotation through this installation, verification and any agreed fixes; no
+PARKED/removal is authorized.
 
 ## Accepted source
 
@@ -60,7 +73,7 @@ inherited self-hosted lint availability, registry export and proprietary Dart
 analysis limits remain explicit in the acceptance record. Source acceptance
 does not establish installed operation.
 
-## Next dependency and owner
+## Earlier dependency and owner (through 2026-11-11)
 
 The [2026-11-03 installed-use return](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-6610909041)
 reports maintainer confirmation of owner opt-in, enabled status/directory link and

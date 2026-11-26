@@ -228,6 +228,13 @@ an installed artifact matches source. On rollback, restore the prior complete
 release and its metadata together; do not leave `Liss r2` on an older artifact.
 Installed verification remains operator- and maintainer-owned.
 
+This UI/version follow-up changes no server or migration source from the prior
+accepted D1 release. Do not repeat the completed readable-name transition or the
+initial D1 migration/revert matrix for this update. To roll back this follow-up,
+restore the prior complete D1 release and its runtime metadata together, keeping
+the already applied D1 migration. The older-upstream/schema-down procedure below
+is a different recovery operation, not the rollback for this UI update.
+
 ### Native update and installed verification
 
 Infra maps the following sequence onto its existing service and records the
