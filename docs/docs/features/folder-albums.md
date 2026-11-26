@@ -195,6 +195,35 @@ and worker selection; do not add another supervisor alongside it. Record source
 SHA, artifact hashes, tool/dependency versions and environment _names_ in the
 release receipt; never publish secrets. Preserve the old release for recovery.
 
+### Visible Liss build identity
+
+The ordinary web sidebar version and its About dialog append the existing server
+About `build` metadata when it has the form `Liss r<N>` (positive release number).
+For the #26 follow-up delivery, set `IMMICH_BUILD='Liss r2'`: the visible label is
+`v3.3.5 · Liss r2`. Other or missing build identifiers retain the base label.
+This display label does not change `server/package.json`, server version API or
+mobile compatibility. The upstream `newVersionCheck.enabled` setting and release
+comparison remain unchanged; the operator manages that setting separately.
+
+Bind this metadata to the complete native release above, including matching
+server and `www` outputs from the exact accepted source. Record `Liss r2`, that
+source SHA and the archive/manifest hashes in the delivery receipt. Set the
+existing `IMMICH_SOURCE_COMMIT` to that full SHA, `IMMICH_SOURCE_REF=liss`,
+`IMMICH_REPOSITORY=AV-Lex/liss-immich`,
+`IMMICH_REPOSITORY_URL=https://github.com/AV-Lex/liss-immich` and
+`IMMICH_SOURCE_URL=https://github.com/AV-Lex/liss-immich/commit/<full-SHA>` in the
+release's runtime environment. These are runtime server metadata, not Vite build
+variables; no new release service or package-version suffix is needed.
+
+After the matched update, reload the web client and verify the sidebar version
+(wrapping below connection status on a narrow sidebar), open that version's About
+dialog and verify the same label and exact source link. Check the About API's
+`build`/`sourceCommit` against the receipt and the ordinary version API still
+reports major 3, minor 3, patch 5, with no prerelease. A label alone does not prove
+an installed artifact matches source. On rollback, restore the prior complete
+release and its metadata together; do not leave `Liss r2` on an older artifact.
+Installed verification remains operator- and maintainer-owned.
+
 ### Native update and installed verification
 
 Infra maps the following sequence onto its existing service and records the
