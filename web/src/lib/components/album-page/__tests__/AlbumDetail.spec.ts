@@ -23,9 +23,10 @@ vi.mock('$app/state', () => ({
 }));
 vi.mock('$lib/managers/feature-flags-manager.svelte', () => ({ featureFlagsManager: { value: { map: false } } }));
 vi.mock('$lib/actions/scroll-memory', () => ({ scrollMemoryClearer: () => ({ destroy() {} }) }));
-vi.mock('$lib/components/timeline/Timeline.svelte', async () => ({
-  default: (await import('./AlbumDetailTimelineFixture.svelte')).default,
-}));
+vi.mock('$lib/components/timeline/Timeline.svelte', async () => {
+  const { default: Timeline } = await import('./AlbumDetailTimelineFixture.svelte');
+  return { default: Timeline };
+});
 vi.mock('$lib/services/app.service', () => ({
   getGlobalActions: () => ({ Cast: { title: 'Cast', icon: '', $if: () => false, onAction() {} } }),
 }));
