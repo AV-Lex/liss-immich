@@ -1,3 +1,4 @@
+import { mdiFolderOutline, mdiFolderOffOutline } from '@mdi/js';
 import '@testing-library/jest-dom';
 import { render, waitFor, type RenderResult } from '@testing-library/svelte';
 import { init, register, waitLocale } from 'svelte-i18n';
@@ -83,8 +84,8 @@ describe('AlbumCard component', () => {
   });
 
   it.each([
-    [true, 'Folder album (new assignments enabled)'],
-    [false, 'Folder album (new assignments disabled; existing folder retained)'],
+    [true, 'Folder album (placement enabled)'],
+    [false, 'Folder album (placement paused; existing files stay in their folder)'],
   ])('marks folder bindings with enabled=%s and links to the actual folder', (enabled, label) => {
     const album = albumFactory.build({
       albumName: 'Camera',
@@ -92,12 +93,15 @@ describe('AlbumCard component', () => {
     });
     sut = render(AlbumCard, { album });
 
-    expect(sut.getByRole('img', { name: label })).toBeInTheDocument();
+    expect(sut.getByRole('img', { name: label }).querySelector('path')).toHaveAttribute(
+      'd',
+      enabled ? mdiFolderOutline : mdiFolderOffOutline,
+    );
     expect(sut.getByRole('link', { name: 'Camera' })).toHaveAttribute('href', Route.viewAlbum(album));
     const folderLink = sut.getByRole('link', { name: 'Open folder: ~/folder-albums/Camera' });
     expect(folderLink).toHaveTextContent('~/folder-albums/Camera');
     expect(folderLink).toHaveAttribute('href', Route.folders({ path: album.folderAlbum!.path }));
-    expect(sut.container.querySelector('a a')).not.toBeInTheDocument();
+    expect(sut.container.querySelector(':scope a a')).not.toBeInTheDocument();
   });
 
   it('keeps ordinary albums free of folder markers and links', () => {
@@ -111,7 +115,7 @@ describe('AlbumCard component', () => {
     const album = albumFactory.build({ folderAlbum: { enabled: true, path: '/outside/Camera' } });
     sut = render(AlbumCard, { album });
 
-    expect(sut.getByRole('img', { name: 'Folder album (new assignments enabled)' })).toBeInTheDocument();
+    expect(sut.getByRole('img', { name: 'Folder album (placement enabled)' })).toBeInTheDocument();
     expect(sut.queryByRole('link', { name: /Open folder/ })).not.toBeInTheDocument();
   });
 });

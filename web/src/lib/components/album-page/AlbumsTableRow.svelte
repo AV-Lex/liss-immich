@@ -8,7 +8,7 @@
   import { locale } from '$lib/stores/preferences.store';
   import { AlbumUserRole, type AlbumResponseDto } from '@immich/sdk';
   import { Icon, menuManager } from '@immich/ui';
-  import { mdiFolderOutline, mdiShareVariantOutline } from '@mdi/js';
+  import { mdiFolderOutline, mdiFolderOffOutline, mdiShareVariantOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
   type Props = {
@@ -50,7 +50,7 @@
     {album.albumName}
     {#if album.folderAlbum}
       <Icon
-        icon={mdiFolderOutline}
+        icon={album.folderAlbum.enabled ? mdiFolderOutline : mdiFolderOffOutline}
         size="16"
         class="ms-1 inline"
         title={$t(album.folderAlbum.enabled ? 'folder_album_marker_enabled' : 'folder_album_marker_retained')}

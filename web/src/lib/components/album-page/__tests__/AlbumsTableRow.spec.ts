@@ -1,3 +1,4 @@
+import { mdiFolderOutline, mdiFolderOffOutline } from '@mdi/js';
 import { render } from '@testing-library/svelte';
 import { init, register, waitLocale } from 'svelte-i18n';
 import { albumFactory } from '@test-data/factories/album-factory';
@@ -11,13 +12,14 @@ describe('AlbumsTableRow folder bindings', () => {
   });
 
   it.each([
-    [true, 'Folder album (new assignments enabled)'],
-    [false, 'Folder album (new assignments disabled; existing folder retained)'],
+    [true, 'Folder album (placement enabled)'],
+    [false, 'Folder album (placement paused; existing files stay in their folder)'],
   ])('marks folder bindings with enabled=%s beside the name', (enabled, label) => {
     const album = albumFactory.build({ folderAlbum: { enabled, path: '/library/owner/folder-albums/Camera' } });
     const sut = render(AlbumsTableRow, { album });
 
     const marker = sut.getByRole('img', { name: label });
+    expect(marker.querySelector('path')).toHaveAttribute('d', enabled ? mdiFolderOutline : mdiFolderOffOutline);
     expect(marker.closest('td')).toHaveTextContent(album.albumName);
   });
 

@@ -154,9 +154,10 @@ albums and unchanged upload/Add/Remove clients retain their normal contracts.
   are logged; the upstream queue adds no new automatic-retry guarantee.
 - The additive native migration is
   [`1793289600000-FolderAlbums`](server/src/schema/migrations/1793289600000-FolderAlbums.ts).
-  It moves no files and opts no existing rows in. The web album menu provides
-  selection/status and links to existing Folder View. Table/sidebar/card folder
-  markers distinguish retained and enabled bindings; cards link a path label
+  It moves no files and opts no existing rows in. The web album and card menus
+  share an owner-only placement control with localized confirmations and
+  response-state refresh. Links open the existing Folder View. Table/sidebar/card
+  folder markers visually distinguish retained and enabled bindings; cards link a path label
   shortened relative to the existing owner library root. Folder View and its
   breadcrumbs retain their existing presentation. Optional OpenAPI/TypeScript
   fields are regenerated with the native Dart generator (Dart output remains

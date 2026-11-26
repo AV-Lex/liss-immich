@@ -6,6 +6,7 @@
   import { websocketStore } from '$lib/stores/websocket';
   import { semverToName } from '$lib/utils';
   import { requestServerInfo } from '$lib/utils/auth';
+  import { getVersionLabel } from '$lib/utils/version-label';
   import {
     getAboutInfo,
     getVersionHistory,
@@ -35,7 +36,7 @@
     userInteraction.versions = versions;
   });
   let isMain = $derived(info?.sourceRef === 'main' && info.repository === 'immich-app/immich');
-  let version = $derived($serverVersion ? semverToName($serverVersion) : null);
+  let version = $derived($serverVersion ? getVersionLabel(semverToName($serverVersion), info?.build) : null);
 
   const getReleaseInfo = (release?: ReleaseEventV1) => {
     if (!release || !release?.isAvailable || !authManager.user.isAdmin) {
@@ -56,7 +57,7 @@
 </script>
 
 <div
-  class="flex min-w-52 place-content-center place-items-center justify-between overflow-hidden ps-5 pe-1 text-sm md:flex dark:text-immich-dark-fg"
+  class="flex min-w-52 flex-wrap place-content-center place-items-center justify-between gap-x-2 gap-y-1 overflow-hidden ps-5 pe-1 text-sm md:flex dark:text-immich-dark-fg"
 >
   {#if $connected}
     <div class="flex place-content-center place-items-center gap-2">
