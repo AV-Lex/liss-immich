@@ -1,10 +1,38 @@
 # Liss Immich — CURRENT
 
-RECORDED_DATE = EVENT_DATE = 2026-11-11
+RECORDED_DATE = EVENT_DATE = 2026-11-26
 ASSIGNMENT_ID = liss-immich-development
-STATE = D1_PHONE_AND_FULL_IMAGE_CHECK_VERIFIED / WAIT_MAINTAINER_FOLLOWUP_DECISION
+STATE = CONCRETE_MAINTAINER_FIXES_IN_PROGRESS
 INTEGRATION_BRANCH = liss
 UPSTREAM_BASELINE = 8303cb117e197c700332b33b61b45314c9cc5bb4
+
+## Current maintainer follow-up (2026-11-26)
+
+The [fresh maintainer return](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-7201232457)
+resumes concrete source work within this finite D1 assignment. The
+[UI request in #16](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-7201231879)
+covers visually distinct retained markers, the shared owner toggle in both
+card/detail menus, confirmation wording and actual response-state refresh.
+Russian wording is included with this change and returned to #17.
+[#26](https://github.com/AV-Lex/liss-immich/issues/26) adds a visible Liss release
+label while preserving base/API/client versions and stock upstream update checking.
+
+The selected cover badge, relative card path and separate album/folder navigation
+are now [maintainer-confirmed](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-7201048821).
+Enabled markers in the table/sidebar and absence on ordinary albums are also
+[confirmed](https://github.com/AV-Lex/liss-immich/issues/16#issuecomment-7201096441).
+Retained UX and the original confirmation wording were not accepted; the explicit
+fix request above supersedes the earlier wait-only next step. No previously
+accepted installation, transition, phone or full-image check is reopened.
+
+Development owns the source fixes and targeted verification. After acceptance,
+return [one combined operator handoff in #2](https://github.com/AV-Lex/liss-immich/issues/2#issuecomment-7201324451)
+with exact sources, reproducible native build/update/check/rollback instructions
+and limits; #16/#26 link to that return. InfraLiss HOME already has the covering
+operator task and owns matching installation and maintainer read-back. No duplicate
+operator task is needed. Source readiness does not establish installed behavior.
+The assignment remains active through those fixes, installation, verification
+and the maintainer's explicit finish decision; no PARKED/removal is authorized.
 
 ## Accepted source
 
