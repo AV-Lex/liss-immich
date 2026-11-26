@@ -47,21 +47,13 @@
   import { handleError } from '$lib/utils/handle-error';
   import { isAlbumsRoute, navigate, type AssetGridRouteSearchParams } from '$lib/utils/navigation';
   import { AlbumUserRole, AssetVisibility, updateAlbumInfo, type AlbumResponseDto } from '@immich/sdk';
-  import {
-    ActionButton,
-    CommandPaletteDefaultProvider,
-    Icon,
-    IconButton,
-    toastManager,
-    modalManager,
-  } from '@immich/ui';
+  import { ActionButton, CommandPaletteDefaultProvider, Icon, IconButton, toastManager } from '@immich/ui';
   import {
     mdiAccountEye,
     mdiAccountEyeOutline,
     mdiArrowLeft,
     mdiDotsHorizontal,
     mdiDotsVertical,
-    mdiFolderOutline,
     mdiImageOutline,
     mdiImagePlusOutline,
     mdiLink,
@@ -89,24 +81,6 @@
   let showAlbumUsers = $derived(timelineManager?.showAssetOwners ?? false);
 
   const timelineMultiSelectManager = new AssetMultiSelectManager();
-
-  const toggleFolderAlbum = async () => {
-    const enabled = !album.folderAlbum?.enabled;
-    if (
-      enabled &&
-      !(await modalManager.showDialog({
-        prompt: $t('folder_album_enable_prompt'),
-        confirmText: $t('folder_album_enable'),
-      }))
-    ) {
-      return;
-    }
-    try {
-      data.album = await updateAlbumInfo({ id: album.id, updateAlbumDto: { isFolderAlbum: enabled } });
-    } catch (error) {
-      handleError(error, $t('errors.unable_to_update_album_info'));
-    }
-  };
 
   const handleFavorite = async () => {
     try {
@@ -153,7 +127,7 @@
       if (updated.id !== album.id) {
         return;
       }
-      album = updated;
+      data.album = updated;
     }
 
     // invalidating during navigation causes an infinite page load
@@ -582,13 +556,7 @@
                     onClick={() => timelineManager.toggleShowAssetOwners()}
                   />
                 {/if}
-                {#if isOwned}
-                  <MenuOption
-                    icon={mdiFolderOutline}
-                    text={$t(album.folderAlbum?.enabled ? 'folder_album_disable' : 'folder_album_enable')}
-                    onClick={toggleFolderAlbum}
-                  />
-                {/if}
+                <ActionMenuItem action={Actions.Folder} />
                 <ActionMenuItem action={Actions.Options} />
                 {#if isOwned && album.assetCount > 0}
                   <MenuOption

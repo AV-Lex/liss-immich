@@ -18,6 +18,8 @@ import {
 import { modalManager, toastManager, type ActionItem } from '@immich/ui';
 import {
   mdiDownload,
+  mdiFolderOutline,
+  mdiFolderOffOutline,
   mdiImageOutline,
   mdiLink,
   mdiPlus,
@@ -37,6 +39,7 @@ import type { TimelineAsset } from '$lib/managers/timeline-manager/types';
 import AddUsersModal from '$lib/modals/AddUsersModal.svelte';
 import AlbumEditModal from '$lib/modals/AlbumEditModal.svelte';
 import AlbumOptionsModal from '$lib/modals/AlbumOptionsModal.svelte';
+import FolderPlacementModal from '$lib/modals/FolderPlacementModal.svelte';
 import SharedLinkCreateModal from '$lib/modals/SharedLinkCreateModal.svelte';
 import { Route } from '$lib/route';
 import { userInteraction } from '$lib/stores/user.svelte';
@@ -126,7 +129,14 @@ export const getAlbumActions = ($t: MessageFormatter, album: AlbumResponseDto) =
     onAction: () => modalManager.show(AlbumOptionsModal, { album }),
   };
 
-  return { AddUsers, CreateSharedLink, Delete, Download, Edit, Leave, Options, Share };
+  const Folder: ActionItem = {
+    title: $t(album.folderAlbum?.enabled ? 'folder_album_disable' : 'folder_album_enable'),
+    icon: album.folderAlbum?.enabled ? mdiFolderOffOutline : mdiFolderOutline,
+    $if: () => isOwned,
+    onAction: () => handleToggleFolderAlbum(album),
+  };
+
+  return { AddUsers, CreateSharedLink, Delete, Download, Edit, Leave, Options, Share, Folder };
 };
 
 export const getAlbumAssetActions = ($t: MessageFormatter, album: AlbumResponseDto, asset: AssetResponseDto) => {
@@ -374,4 +384,24 @@ export const handleDeleteAlbum = async (album: AlbumResponseDto, options?: { pro
 
 export const handleDownloadAlbum = async (album: AlbumResponseDto) => {
   await downloadArchive(album.albumName, { albumId: album.id });
+};
+
+export const handleToggleFolderAlbum = async (album: AlbumResponseDto) => {
+  if (!isAlbumOwner(album)) {
+    return;
+  }
+
+  const $t = await getFormatter();
+  const enabled = !album.folderAlbum?.enabled;
+  const confirmed = await modalManager.show(FolderPlacementModal, { enabled });
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const response = await updateAlbumInfo({ id: album.id, updateAlbumDto: { isFolderAlbum: enabled } });
+    eventManager.emit('AlbumUpdate', response);
+  } catch (error) {
+    handleError(error, $t('errors.unable_to_update_album_info'));
+  }
 };

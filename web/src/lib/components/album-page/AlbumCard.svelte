@@ -5,7 +5,7 @@
   import { getShortDateRange } from '$lib/utils/date-time';
   import { type AlbumResponseDto } from '@immich/sdk';
   import { ContextMenuButton, Icon, type MenuItems } from '@immich/ui';
-  import { mdiFolderOutline } from '@mdi/js';
+  import { mdiFolderOutline, mdiFolderOffOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
   type Props = {
@@ -51,9 +51,9 @@
     <AlbumCover {album} {preload} class="transition-all duration-300 group-hover:shadow-lg" />
     {#if album.folderAlbum}
       <Icon
-        icon={mdiFolderOutline}
+        icon={album.folderAlbum.enabled ? mdiFolderOutline : mdiFolderOffOutline}
         size="28"
-        class="absolute start-2 top-2 rounded-md bg-white/90 p-1 text-black dark:bg-gray-900/90 dark:text-white"
+        class="absolute inset-s-2 top-2 rounded-md bg-white/90 p-1 text-black dark:bg-gray-900/90 dark:text-white"
         title={$t(album.folderAlbum.enabled ? 'folder_album_marker_enabled' : 'folder_album_marker_retained')}
       />
     {/if}

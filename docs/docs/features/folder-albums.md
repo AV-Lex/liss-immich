@@ -1,6 +1,6 @@
 # Folder albums (Liss v0)
 
-An album owner can choose **Use as folder album** in the web album menu. This
+An album owner can choose **Enable folder placement** in the web album or card menu. This
 explicitly applies the first layout to eligible existing members and future
 additions. Ordinary albums keep their existing many-to-many behavior. Existing
 mobile and CLI uploads continue to use the ordinary upload and album Add APIs.
@@ -29,8 +29,12 @@ follow upstream behavior. Existing UUID-suffixed D1 directories stay in place
 until an owner explicitly requests the bounded transition described below.
 
 The album table, recent albums in the sidebar and card covers show the same
-folder marker for a retained binding. Its accessible label distinguishes enabled
-placement from stopped new assignments. Ordinary logical albums have no marker.
+folder outline while placement is enabled and a folder with a slash
+while placement is disabled. Both markers have accessible status labels. Ordinary logical albums have no marker.
+Both owner-only menus ask for confirmation before enabling or disabling placement.
+Disabling keeps existing files in place; enabling again reuses the same folder.
+The menu and markers update from the returned album state after a successful request.
+Cancelling or a failed request leaves the displayed state unchanged.
 Cards also show a linked `~/folder-albums/<name>` label beneath the album title,
 relative to the owner's existing library root. `~` is display shorthand only;
 links use the real path. Folder View and its breadcrumbs keep their existing

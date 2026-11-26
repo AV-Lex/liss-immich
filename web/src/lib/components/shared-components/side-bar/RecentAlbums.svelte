@@ -1,11 +1,13 @@
 <script lang="ts">
+  import OnEvents from '$lib/components/OnEvents.svelte';
+  import type { AlbumResponseDto } from '@immich/sdk';
   import { Route } from '$lib/route';
   import { userInteraction } from '$lib/stores/user.svelte';
   import { getAssetMediaUrl } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
   import { getAllAlbums } from '@immich/sdk';
   import { Icon } from '@immich/ui';
-  import { mdiFolderOutline } from '@mdi/js';
+  import { mdiFolderOutline, mdiFolderOffOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
   let albums = $state(userInteraction.recentAlbums);
@@ -20,12 +22,19 @@
     }
   };
 
+  const onAlbumUpdate = (updated: AlbumResponseDto) => {
+    albums = albums?.map((album) => (album.id === updated.id ? updated : album));
+    userInteraction.recentAlbums = albums;
+  };
+
   $effect(() => {
     if (!userInteraction.recentAlbums) {
       void refreshAlbums();
     }
   });
 </script>
+
+<OnEvents {onAlbumUpdate} />
 
 {#each albums as album (album.id)}
   <a
@@ -44,7 +53,7 @@
     <div class="flex min-w-0 grow items-center gap-1 text-sm font-medium">
       {#if album.folderAlbum}
         <Icon
-          icon={mdiFolderOutline}
+          icon={album.folderAlbum.enabled ? mdiFolderOutline : mdiFolderOffOutline}
           size="16"
           class="shrink-0"
           title={$t(album.folderAlbum.enabled ? 'folder_album_marker_enabled' : 'folder_album_marker_retained')}
